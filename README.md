@@ -9,6 +9,7 @@
 [![Vite](https://img.shields.io/badge/Vite-6.x-purple.svg)](https://vitejs.dev/)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-v4-38bdf8.svg)](https://tailwindcss.com/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/zsirafmix/fatebook)
 
 ---
 
@@ -213,6 +214,28 @@ git remote add origin https://github.com/FELHASZNALONEV/fatebook.git
 # Töltsd fel a kódot a GitHub-ra:
 git push -u origin main
 ```
+
+---
+
+## 🌐 Telepítés Render.com-ra (1-Kattintásos Üzembehelyezés)
+
+A FateBook azonnal, díjmentesen publikálható a **[Render.com](https://render.com)** platformon az előre konfigurált `render.yaml` Blueprint segítségével:
+
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/zsirafmix/fatebook)
+
+### Kézi beállítás (Render Dashboard):
+1. Lépj be a [dashboard.render.com](https://dashboard.render.com) oldalra.
+2. Kattints a **New +** → **Static Site** gombra.
+3. Csatlakoztasd a `zsirafmix/fatebook` GitHub tárolót.
+4. Add meg a beállításokat:
+   - **Name**: `fatebook`
+   - **Branch**: `main`
+   - **Build Command**: `npm install && npm run build`
+   - **Publish Directory**: `dist`
+5. Kattints a **Create Static Site** gombra.
+6. A **Redirects/Rewrites** menüpontban adj hozzá egy SPA átirányítási szabályt:
+   - `/*` → `/index.html` (Rewrite)
+7. A Render lefordítja a kódot, és egy nyilvános, biztonságos HTTPS URL-en elindítja az alkalmazást (pl. `https://fatebook.onrender.com`).
 
 ---
 
