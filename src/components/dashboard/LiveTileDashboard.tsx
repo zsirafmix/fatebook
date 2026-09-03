@@ -2,8 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { ActiveTab, UserProfile, BookChapter, FateEntity, BoardStory } from '../../types';
 import { 
   MessageSquare, BookOpen, HelpCircle, Pin, Clock, Users, 
-  Image as ImageIcon, History, BarChart3, Heart, Mic, ArrowRight, 
-  AlertTriangle, Sparkles, RefreshCw, Search
+  Image as ImageIcon, ArrowRight, Mic,
+  AlertTriangle, Sparkles, RefreshCw, Search, CheckCircle2
 } from 'lucide-react';
 
 interface LiveTileDashboardProps {
@@ -11,6 +11,7 @@ interface LiveTileDashboardProps {
   chapters: BookChapter[];
   entities: FateEntity[];
   boardStories: BoardStory[];
+  contradictionsCount: number;
   setActiveTab: (tab: ActiveTab) => void;
   openVoiceModal: () => void;
   openContradictionModal: () => void;
@@ -23,6 +24,7 @@ export const LiveTileDashboard: React.FC<LiveTileDashboardProps> = ({
   chapters,
   entities,
   boardStories,
+  contradictionsCount,
   setActiveTab,
   openVoiceModal,
   openContradictionModal,
@@ -40,10 +42,10 @@ export const LiveTileDashboard: React.FC<LiveTileDashboardProps> = ({
     return () => clearInterval(timer);
   }, []);
 
-  const latestChapter = chapters[chapters.length - 1] || chapters[0];
+  const hasChapters = chapters.length > 0;
+  const latestChapter = hasChapters ? chapters[chapters.length - 1] : null;
   const trendingStory = boardStories[0];
   const verifiedEntities = entities.filter((e) => e.confidence === 'verified');
-  const hypothesisEntities = entities.filter((e) => e.confidence === 'hypothesis');
 
   return (
     <div className="flex flex-col space-y-5 pb-20 select-none">
@@ -61,7 +63,11 @@ export const LiveTileDashboard: React.FC<LiveTileDashboardProps> = ({
           </div>
           <p className="text-slate-400 text-xs sm:text-sm mt-1.5 flex items-center">
             <span className="inline-block w-2.5 h-2.5 rounded-full bg-emerald-500 mr-2 shrink-0 animate-pulse"></span>
-            <span>„Tegnap ott hagytuk abba, hogy 1994-ben megérkeztetek Rómába. Mi történt másnap reggel?”</span>
+            <span>
+              {hasChapters
+                ? `„Tegnap ott hagytuk abba, hogy ${latestChapter?.timeBracket}-ben mi történt. Folytassuk innen?”`
+                : '„Üdvözlünk a FateBookban! Az életed könyve tiszta lappal indul. Miről mesélnél ma először?”'}
+            </span>
           </p>
         </div>
 
@@ -75,13 +81,20 @@ export const LiveTileDashboard: React.FC<LiveTileDashboardProps> = ({
             <span>Tile Forgatás</span>
           </button>
           
-          <button
-            onClick={openContradictionModal}
-            className="text-xs bg-amber-950/80 hover:bg-amber-900 text-amber-200 px-3 py-1.5 rounded-md border border-amber-700/60 transition flex items-center space-x-1.5 shadow"
-          >
-            <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
-            <span>1 Ellentmondás feloldása</span>
-          </button>
+          {contradictionsCount > 0 ? (
+            <button
+              onClick={openContradictionModal}
+              className="text-xs bg-amber-950/80 hover:bg-amber-900 text-amber-200 px-3 py-1.5 rounded-md border border-amber-700/60 transition flex items-center space-x-1.5 shadow"
+            >
+              <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
+              <span>{contradictionsCount} Ellentmondás feloldása</span>
+            </button>
+          ) : (
+            <div className="text-xs bg-slate-800/80 text-emerald-300 px-3 py-1.5 rounded-md border border-slate-700 flex items-center space-x-1.5">
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Tudásbázis rendben</span>
+            </div>
+          )}
         </div>
       </div>
 
@@ -103,16 +116,18 @@ export const LiveTileDashboard: React.FC<LiveTileDashboardProps> = ({
               </span>
             </div>
             <span className="text-[10px] bg-blue-700/60 text-blue-100 px-2 py-0.5 rounded font-bold uppercase">
-              Aktív Fonal
+              {hasChapters ? 'Aktív Fonal' : 'Új Kezdet'}
             </span>
           </div>
 
           <div className="my-2">
             <h3 className="text-xl sm:text-2xl font-black leading-tight text-white group-hover:text-blue-100 transition">
-              „Miről mesélnél ma?”
+              {hasChapters ? '„Miről mesélnél ma?”' : '„Kezdjük el a könyvedet!”'}
             </h3>
             <p className="text-xs sm:text-sm text-blue-200/90 mt-1.5 line-clamp-3 leading-relaxed">
-              Az AI emlékszik a legutóbbi részletekre: Róma, Via Veneto és a 100 lírás érme. Folytassuk innen, vagy ugorjunk egy új emlékre?
+              {hasChapters
+                ? 'Az AI emlékszik a legutóbbi részletekre. Folytassuk innen, vagy ugorjunk egy új emlékre?'
+                : `Szia! ${user.aiName} készen áll. Mesélj a gyermekkorodról, a szülői házról, vagy a legelső fontos élményedről!`}
             </p>
           </div>
 
@@ -153,7 +168,7 @@ export const LiveTileDashboard: React.FC<LiveTileDashboardProps> = ({
                   </span>
                 </div>
                 <span className="text-xs font-bold bg-rose-800/60 px-2 py-0.5 rounded border border-rose-600/40">
-                  {latestChapter.volumeName}
+                  {latestChapter ? latestChapter.volumeName : 'I. Kötet (Tiszta lap)'}
                 </span>
               </div>
 
@@ -163,21 +178,23 @@ export const LiveTileDashboard: React.FC<LiveTileDashboardProps> = ({
                   <span className="text-sm font-normal text-rose-300">fejezet kész</span>
                 </div>
                 <p className="text-xs text-rose-200/90 mt-1">
-                  ~342 oldal • {user.totalWords.toLocaleString()} szó • 4 kötet
+                  {hasChapters
+                    ? `~${chapters.length * 12 + 10} oldal • ${user.totalWords.toLocaleString()} szó`
+                    : '0 oldal • A te életedből most épül a könyv'}
                 </p>
 
                 <div className="mt-2.5 bg-rose-950/70 rounded-md p-2.5 border border-rose-800/50 text-xs">
                   <span className="text-rose-300 block text-[10px] font-bold uppercase tracking-wider">
-                    Legutóbb elkészült fejezet
+                    {hasChapters ? 'Legutóbb elkészült fejezet' : 'Első fejezetre várva'}
                   </span>
                   <span className="font-bold text-white truncate block mt-0.5">
-                    „{latestChapter.title}”
+                    {hasChapters ? `„${latestChapter?.title}”` : 'Mesélj a FateAI-nak a legelső emlékedről!'}
                   </span>
                 </div>
               </div>
 
               <div className="flex items-center justify-between text-xs text-rose-200 pt-2 border-t border-rose-800/40">
-                <span>Kétoldalas könyvolvasó megnyitása</span>
+                <span>{hasChapters ? 'Könyvolvasó megnyitása' : 'Kezdd el az I. fejezetet'}</span>
                 <ArrowRight className="w-4 h-4" />
               </div>
             </div>
@@ -199,7 +216,7 @@ export const LiveTileDashboard: React.FC<LiveTileDashboardProps> = ({
                   {user.name} Krónikája
                 </p>
                 <p className="text-[11px] text-amber-300/80 tracking-widest uppercase mt-1 font-semibold">
-                  1968 – 2026
+                  {new Date().getFullYear()}
                 </p>
                 <div className="w-16 h-0.5 bg-amber-400/40 mx-auto my-2.5"></div>
                 <p className="text-xs text-stone-300 font-serif italic">
@@ -227,12 +244,14 @@ export const LiveTileDashboard: React.FC<LiveTileDashboardProps> = ({
               <span>Mai Személyes Kérdés</span>
             </span>
             <span className="text-[10px] bg-teal-700/60 px-2 py-0.5 rounded text-teal-100 font-bold">
-              1979-es korszak
+              {hasChapters ? 'Emlékezés' : 'Kezdő Kérdés'}
             </span>
           </div>
 
           <p className="text-xs sm:text-sm font-bold text-white line-clamp-2 mt-1 group-hover:text-teal-100 transition">
-            „Ki volt a legmeghatározóbb tanárod a gimnáziumban, és melyik mondatára emlékszel máig?”
+            {hasChapters
+              ? '„Ki volt a legmeghatározóbb tanárod a fiatalkorodban, és melyik mondatára emlékszel máig?”'
+              : '„Mi a legelső dolog, amire a gyermekkorodból emlékszel? Egy ház, egy játék, egy illat?”'}
           </p>
 
           <div className="flex justify-between items-center text-[11px] text-teal-200 pt-1 border-t border-teal-700/40">
@@ -280,25 +299,18 @@ export const LiveTileDashboard: React.FC<LiveTileDashboardProps> = ({
               <Clock className="w-3.5 h-3.5" />
               <span>Idővonalam</span>
             </span>
-            <span className="text-[10px] text-purple-300 font-semibold">1968 – 2026</span>
+            <span className="text-[10px] text-purple-300 font-semibold">Életút</span>
           </div>
 
           {/* Density Heatmap */}
           <div className="my-1">
             <div className="flex h-2 w-full rounded bg-purple-950 overflow-hidden space-x-0.5 border border-purple-800">
-              <div className="bg-purple-400 w-1/5" title="Gyermekkor: 95% kész"></div>
-              <div className="bg-purple-500 w-1/5" title="Kamaszkor: 80% kész"></div>
-              <div className="bg-purple-900 w-1/5 relative" title="1976-1983: Csak 18% lefedettség!">
-                <span className="absolute inset-0 bg-red-500/40 animate-pulse"></span>
-              </div>
-              <div className="bg-purple-400 w-1/5" title="Házasság & Első munka: 90%"></div>
-              <div className="bg-purple-500 w-1/5" title="Család & Utazások: 85%"></div>
+              <div className={`${hasChapters ? 'bg-purple-400 w-1/5' : 'bg-purple-900/50 w-full'}`} title="Korszakok"></div>
             </div>
             <div className="flex justify-between text-[9px] text-purple-300 mt-1 font-semibold">
-              <span>'70</span>
-              <span className="text-amber-400 font-black">'80 hiány</span>
-              <span>'95</span>
-              <span>'26</span>
+              <span>Kezdetek</span>
+              <span className="text-amber-400 font-black">{hasChapters ? 'Korszakok' : 'Épülőben'}</span>
+              <span>Ma</span>
             </div>
           </div>
 
@@ -319,13 +331,22 @@ export const LiveTileDashboard: React.FC<LiveTileDashboardProps> = ({
           </div>
 
           <div className="flex items-center space-x-2 my-1">
-            <div className="flex -space-x-2 overflow-hidden">
-              <div className="inline-block h-7 w-7 rounded-full ring-2 ring-emerald-900 bg-amber-700 flex items-center justify-center text-[10px] font-bold">K</div>
-              <div className="inline-block h-7 w-7 rounded-full ring-2 ring-emerald-900 bg-rose-700 flex items-center justify-center text-[10px] font-bold">P</div>
-              <div className="inline-block h-7 w-7 rounded-full ring-2 ring-emerald-900 bg-blue-700 flex items-center justify-center text-[10px] font-bold">D</div>
-              <div className="inline-block h-7 w-7 rounded-full ring-2 ring-emerald-900 bg-purple-700 flex items-center justify-center text-[10px] font-bold">K</div>
-            </div>
-            <span className="text-xs text-emerald-100 font-semibold">Kata, Péter, Dániel...</span>
+            {verifiedEntities.length > 0 ? (
+              <>
+                <div className="flex -space-x-2 overflow-hidden">
+                  {verifiedEntities.slice(0, 3).map((ent, i) => (
+                    <div key={i} className="inline-block h-7 w-7 rounded-full ring-2 ring-emerald-900 bg-amber-700 flex items-center justify-center text-[10px] font-bold">
+                      {ent.name.charAt(0)}
+                    </div>
+                  ))}
+                </div>
+                <span className="text-xs text-emerald-100 font-semibold truncate">
+                  {verifiedEntities.map((e) => e.name).slice(0, 2).join(', ')}...
+                </span>
+              </>
+            ) : (
+              <span className="text-[11px] text-emerald-200 italic">Még nincs rögzített szereplő</span>
+            )}
           </div>
 
           <span className="text-[11px] text-emerald-300 font-semibold">Szereplőkártyák & Gráf →</span>
@@ -341,16 +362,18 @@ export const LiveTileDashboard: React.FC<LiveTileDashboardProps> = ({
               <ImageIcon className="w-3.5 h-3.5" />
               <span>Fotók / Emlékek</span>
             </span>
-            <span className="text-xs font-bold text-amber-300">184 elem</span>
+            <span className="text-xs font-bold text-amber-300">{hasChapters ? '184 elem' : '0 elem'}</span>
           </div>
 
           <div className="flex items-center space-x-2.5 my-1">
             <div className="w-9 h-9 bg-stone-100 text-stone-900 rounded p-1 shadow rotate-[-4deg] flex flex-col items-center justify-center shrink-0 border border-stone-300">
-              <span className="text-[8px] font-bold">1994</span>
-              <span className="text-[11px]">📷</span>
+              <span className="text-[8px] font-bold">📷</span>
+              <span className="text-[11px]">✨</span>
             </div>
             <p className="text-xs text-amber-100 line-clamp-2 leading-tight">
-              „Kik vannak a képen? Fotófeltöltés és AI elemzés”
+              {hasChapters
+                ? '„Kik vannak a képen? Fotófeltöltés és AI elemzés”'
+                : 'Töltsd fel az első családi fényképedet!'}
             </p>
           </div>
 
@@ -364,17 +387,17 @@ export const LiveTileDashboard: React.FC<LiveTileDashboardProps> = ({
         >
           <div className="flex items-center justify-between">
             <span className="text-xs uppercase font-extrabold tracking-wider text-red-200 flex items-center space-x-1.5">
-              <Heart className="w-3.5 h-3.5" />
+              <Users className="w-3.5 h-3.5" />
               <span>FateFamily</span>
             </span>
             <span className="text-[10px] bg-red-800/80 px-2 py-0.5 rounded text-red-200 font-bold">
-              5 Családtag
+              Közös Archívum
             </span>
           </div>
 
           <div className="my-1">
             <p className="text-xs text-red-100 leading-tight">
-              <strong className="font-bold">Anna (lányunk):</strong> új kérdést küldött a családfához!
+              Hívd meg a családtagjaidat a közös generációs családfába!
             </p>
           </div>
 
@@ -399,7 +422,9 @@ export const LiveTileDashboard: React.FC<LiveTileDashboardProps> = ({
           <div className="h-7 w-px bg-slate-800"></div>
           <div>
             <span className="text-slate-400 block text-[10px] uppercase font-extrabold">Életlefedettség</span>
-            <span className="text-blue-400 font-black text-sm">68% (Becslés)</span>
+            <span className="text-blue-400 font-black text-sm">
+              {hasChapters ? '68% (Becslés)' : '0% (Kezdet)'}
+            </span>
           </div>
         </div>
 
@@ -414,7 +439,7 @@ export const LiveTileDashboard: React.FC<LiveTileDashboardProps> = ({
               onKeyDown={(e) => {
                 if (e.key === 'Enter') onSearch(searchQuery);
               }}
-              placeholder="„Mutasd az 1990-es balatoni emlékeket...”"
+              placeholder="„Keresés az emlékeidben és fejezeteidben...”"
               className="w-full bg-slate-950 border border-slate-700/80 rounded-lg pl-9 pr-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition"
             />
           </div>

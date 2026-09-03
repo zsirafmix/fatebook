@@ -4,12 +4,12 @@ import { BookOpen, Sparkles, User, ShieldCheck, Mail, Lock, Feather, ArrowRight,
 import confetti from 'canvas-confetti';
 
 interface AuthScreenProps {
-  onLogin: (user: UserProfile) => void;
+  onLogin: (user: UserProfile, isNewRegistration?: boolean) => void;
   onDemoLogin: () => void;
 }
 
 export const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin, onDemoLogin }) => {
-  const [mode, setMode] = useState<'login' | 'register'>('register');
+  const [mode, setMode] = useState<'register' | 'login'>('register');
 
   // Form Fields
   const [name, setName] = useState('');
@@ -62,23 +62,24 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin, onDemoLogin }) 
         origin: { y: 0.6 },
       });
 
-      onLogin(newUser);
+      // Pass true for brand new empty profile!
+      onLogin(newUser, true);
     } else {
-      // Login existing or created user
+      // Login existing user
       const existingUser: UserProfile = {
         id: `user-${Date.now()}`,
-        name: name.trim() || 'Péter',
-        penName: penName.trim() || 'ÖregRóka72',
+        name: name.trim() || 'Új Látogató',
+        penName: penName.trim() || 'KrónikásUser',
         email: email.trim(),
-        aiName: aiName || 'Krónikás Gergő',
+        aiName: aiName || 'Krónikás',
         aiPersona: 'biographer',
-        tier: 'plus',
-        streakDays: 12,
-        totalAudioHours: 48.2,
-        totalWords: 84520,
+        tier: 'free',
+        streakDays: 1,
+        totalAudioHours: 0,
+        totalWords: 0,
       };
 
-      onLogin(existingUser);
+      onLogin(existingUser, false);
     }
   };
 
@@ -280,7 +281,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin, onDemoLogin }) 
             <div className="w-full border-t border-slate-800"></div>
           </div>
           <span className="relative bg-slate-900 px-3 text-[11px] text-slate-400 font-semibold uppercase tracking-wider">
-            Vagy azonnali kipróbálás
+            Vagy kipróbálás demó adatokkal
           </span>
         </div>
 
@@ -291,7 +292,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin, onDemoLogin }) 
           className="w-full py-2.5 rounded-xl bg-slate-950 hover:bg-slate-800 border border-slate-700 text-slate-200 font-bold text-xs transition flex items-center justify-center space-x-2 shadow"
         >
           <Sparkles className="w-4 h-4 text-amber-400" />
-          <span>Kipróbálás Demó Fiókkal (Péter előre kitöltött könyve)</span>
+          <span>Kipróbálás Demó Fiókkal (Péter előre megírt könyve)</span>
         </button>
 
         {/* Privacy Note */}

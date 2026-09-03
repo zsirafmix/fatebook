@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ActiveTab, UserProfile, ChatMessage, FateEntity, ContradictionItem, BookChapter, BoardStory, AiPersona } from './types';
 import { 
   initialUser, initialMessages, initialEntities, 
@@ -21,7 +21,7 @@ import { ContradictionModal } from './components/memory/ContradictionModal';
 import { FateFamilyView } from './components/family/FateFamilyView';
 
 export const App: React.FC = () => {
-  // Authentication State: Null by default for new visitors, or retrieved from localStorage
+  // Authentication State
   const [user, setUser] = useState<UserProfile | null>(() => {
     try {
       const saved = localStorage.getItem('fatebook_user');
@@ -35,11 +35,51 @@ export const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<ActiveTab>('dashboard');
   const [deviceMode, setDeviceMode] = useState<'desktop' | 'mobile'>('desktop');
 
-  // Core Data States
-  const [messages, setMessages] = useState<ChatMessage[]>(initialMessages);
-  const [chapters, setChapters] = useState<BookChapter[]>(initialChapters);
-  const [entities, setEntities] = useState<FateEntity[]>(initialEntities);
-  const [contradictions, setContradictions] = useState<ContradictionItem[]>(initialContradictions);
+  // Core Data States (Initialized based on whether user is demo or newly registered)
+  const [messages, setMessages] = useState<ChatMessage[]>(() => {
+    try {
+      const isDemo = localStorage.getItem('fatebook_is_demo') === 'true';
+      if (isDemo) return initialMessages;
+      const saved = localStorage.getItem('fatebook_messages');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const [chapters, setChapters] = useState<BookChapter[]>(() => {
+    try {
+      const isDemo = localStorage.getItem('fatebook_is_demo') === 'true';
+      if (isDemo) return initialChapters;
+      const saved = localStorage.getItem('fatebook_chapters');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const [entities, setEntities] = useState<FateEntity[]>(() => {
+    try {
+      const isDemo = localStorage.getItem('fatebook_is_demo') === 'true';
+      if (isDemo) return initialEntities;
+      const saved = localStorage.getItem('fatebook_entities');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const [contradictions, setContradictions] = useState<ContradictionItem[]>(() => {
+    try {
+      const isDemo = localStorage.getItem('fatebook_is_demo') === 'true';
+      if (isDemo) return initialContradictions;
+      const saved = localStorage.getItem('fatebook_contradictions');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
   const [boardStories, setBoardStories] = useState<BoardStory[]>(initialBoardStories);
 
   // Modals
@@ -59,34 +99,92 @@ export const App: React.FC = () => {
     }, 3200);
   };
 
+  // Sync state to localStorage for persistence
+  useEffect(() => {
+    if (user && localStorage.getItem('fatebook_is_demo') !== 'true') {
+      try {
+        localStorage.setItem('fatebook_chapters', JSON.stringify(chapters));
+        localStorage.setItem('fatebook_entities', JSON.stringify(entities));
+        localStorage.setItem('fatebook_contradictions', JSON.stringify(contradictions));
+        localStorage.setItem('fatebook_messages', JSON.stringify(messages));
+      } catch (e) {
+        console.error(e);
+      }
+    }
+  }, [chapters, entities, contradictions, messages, user]);
+
   // Auth Handlers
-  const handleLogin = (newUser: UserProfile) => {
+  const handleLogin = (newUser: UserProfile, isNewRegistration = false) => {
     setUser(newUser);
     try {
       localStorage.setItem('fatebook_user', JSON.stringify(newUser));
+      localStorage.setItem('fatebook_is_demo', 'false');
     } catch (e) {
       console.error(e);
     }
-    showToast(`Üdvözlünk a FateBookban, ${newUser.name}! Az életkönyved megnyílt.`);
+
+    if (isNewRegistration) {
+      // BRAND NEW USER: Profile is COMPLETELY EMPTY!
+      setChapters([]);
+      setEntities([]);
+      setContradictions([]);
+      
+      const welcomeMsg: ChatMessage = {
+        id: `msg-welcome-${Date.now()}`,
+        sender: 'ai',
+        text: `Szia ${newUser.name}! Én vagyok ${newUser.aiName}, a személyes AI-életrajzíród. Nagyon örülök, hogy megismerhetlek! Az életkönyved első oldala még tiszta, üres papír, és a mi feladatunk, hogy lapról lapra megírjuk a történetedet. Miről mesélnél ma először? A gyerekkorodról, a szüleidről, egy felejthetetlen utazásról, vagy a mai napodról?`,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      };
+      setMessages([welcomeMsg]);
+
+      try {
+        localStorage.setItem('fatebook_chapters', JSON.stringify([]));
+        localStorage.setItem('fatebook_entities', JSON.stringify([]));
+        localStorage.setItem('fatebook_contradictions', JSON.stringify([]));
+        localStorage.setItem('fatebook_messages', JSON.stringify([welcomeMsg]));
+      } catch (e) {
+        console.error(e);
+      }
+
+      showToast(`Üdvözlünk a FateBookban, ${newUser.name}! A könyved tiszta lappal indul.`);
+    } else {
+      showToast(`Üdv újra itt, ${newUser.name}!`);
+    }
   };
 
   const handleDemoLogin = () => {
     setUser(initialUser);
+    setChapters(initialChapters);
+    setEntities(initialEntities);
+    setContradictions(initialContradictions);
+    setMessages(initialMessages);
+
     try {
       localStorage.setItem('fatebook_user', JSON.stringify(initialUser));
+      localStorage.setItem('fatebook_is_demo', 'true');
     } catch (e) {
       console.error(e);
     }
-    showToast('Belépve Péter demó fiókjába! Kipróbálhatod a teljes előre feltöltött élményt.');
+
+    showToast('Belépve Péter demó fiókjába (előre kitöltött könyvvel).');
   };
 
   const handleLogout = () => {
     try {
       localStorage.removeItem('fatebook_user');
+      localStorage.removeItem('fatebook_is_demo');
+      localStorage.removeItem('fatebook_chapters');
+      localStorage.removeItem('fatebook_entities');
+      localStorage.removeItem('fatebook_contradictions');
+      localStorage.removeItem('fatebook_messages');
     } catch (e) {
       console.error(e);
     }
     setUser(null);
+    setChapters([]);
+    setEntities([]);
+    setContradictions([]);
+    setMessages([]);
     setActiveTab('dashboard');
     showToast('Sikeresen kijelentkeztél.');
   };
@@ -116,7 +214,7 @@ export const App: React.FC = () => {
         sender: 'ai',
         text: randomResponse,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        extractedEntities: ['Új emlékfonal (FateMemory rögzítve)'],
+        extractedEntities: ['Új emlékfonal rögzítve'],
       };
 
       setMessages((prev) => [...prev, aiMsg]);
@@ -153,7 +251,7 @@ export const App: React.FC = () => {
     if (user) {
       setUser((prev) => (prev ? { ...prev, totalWords: prev.totalWords + 480 } : prev));
     }
-    showToast('📖 Új fejezet hozzáadva a Könyvemhez!');
+    showToast('📖 Új fejezet hozzáadva a Könyvedhez!');
     setActiveTab('book');
   };
 
@@ -246,6 +344,8 @@ export const App: React.FC = () => {
     );
   }
 
+  const activeContradictionsCount = contradictions.filter((c) => c.status === 'pending').length;
+
   // IF AUTHENTICATED: Main FateBook Experience
   return (
     <div className="min-h-full flex flex-col bg-slate-950 text-slate-100 antialiased selection:bg-rose-500 selection:text-white">
@@ -277,13 +377,14 @@ export const App: React.FC = () => {
               chapters={chapters}
               entities={entities}
               boardStories={boardStories}
+              contradictionsCount={activeContradictionsCount}
               setActiveTab={setActiveTab}
               openVoiceModal={() => setIsVoiceModalOpen(true)}
               openContradictionModal={() => setIsContradictionModalOpen(true)}
               onSearch={(q) => showToast(`🔍 Keresés a FateMemoryban: „${q}”`)}
               onAskDailyQuestion={() => {
                 setActiveTab('ai');
-                handleSendMessage('Mesélek a gimnáziumi tanáromról és az 1979-es évekről.');
+                handleSendMessage('Mesélek a gyerekkoromról és a szülői házról.');
               }}
             />
           )}
@@ -308,6 +409,7 @@ export const App: React.FC = () => {
           {activeTab === 'book' && (
             <BookReader
               chapters={chapters}
+              userName={user.name}
               onOpenPrintWizard={() => setIsPrintWizardOpen(true)}
               onUpdateChapter={(id, newContent) => {
                 setChapters((prev) =>
@@ -315,6 +417,7 @@ export const App: React.FC = () => {
                 );
                 showToast('✍️ Fejezet frissítve!');
               }}
+              onNavigateToAi={() => setActiveTab('ai')}
             />
           )}
 
@@ -331,6 +434,7 @@ export const App: React.FC = () => {
           {activeTab === 'memory' && (
             <FateMemoryGraph
               entities={entities}
+              contradictionsCount={activeContradictionsCount}
               onConfirmHypothesis={handleConfirmHypothesis}
               openContradictionModal={() => setIsContradictionModalOpen(true)}
               openCorrectionModal={() => {
@@ -379,12 +483,14 @@ export const App: React.FC = () => {
         onPublish={handlePublishToBoard}
       />
 
-      <ContradictionModal
-        isOpen={isContradictionModalOpen}
-        onClose={() => setIsContradictionModalOpen(false)}
-        contradiction={contradictions[0]}
-        onResolve={handleResolveContradiction}
-      />
+      {contradictions.length > 0 && (
+        <ContradictionModal
+          isOpen={isContradictionModalOpen}
+          onClose={() => setIsContradictionModalOpen(false)}
+          contradiction={contradictions[0]}
+          onResolve={handleResolveContradiction}
+        />
+      )}
 
       {/* Floating Toast Notification */}
       {toastMessage && (
