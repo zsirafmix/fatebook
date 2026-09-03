@@ -1,6 +1,6 @@
 import React from 'react';
 import { ActiveTab, UserProfile } from '../types';
-import { BookOpen, MessageSquare, Home, Pin, Brain, Users, Mic, Monitor, Smartphone, LogOut } from 'lucide-react';
+import { BookOpen, MessageSquare, Home, Pin, Brain, Users, Mic, Monitor, Smartphone, LogOut, ShieldAlert, Shield } from 'lucide-react';
 
 interface HeaderProps {
   activeTab: ActiveTab;
@@ -10,6 +10,7 @@ interface HeaderProps {
   openVoiceModal: () => void;
   user: UserProfile;
   onLogout: () => void;
+  onToggleAdminRole?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -20,7 +21,10 @@ export const Header: React.FC<HeaderProps> = ({
   openVoiceModal,
   user,
   onLogout,
+  onToggleAdminRole,
 }) => {
+  const isAdmin = user.role === 'admin' || user.permissions?.canManageUsers;
+
   const navItems: { id: ActiveTab; label: string; icon: React.ReactNode }[] = [
     { id: 'dashboard', label: 'Kezdőlap', icon: <Home className="w-4 h-4" /> },
     { id: 'ai', label: 'FateAI', icon: <MessageSquare className="w-4 h-4" /> },
@@ -29,6 +33,14 @@ export const Header: React.FC<HeaderProps> = ({
     { id: 'memory', label: 'FateMemory', icon: <Brain className="w-4 h-4" /> },
     { id: 'family', label: 'FateFamily', icon: <Users className="w-4 h-4" /> },
   ];
+
+  if (isAdmin) {
+    navItems.push({
+      id: 'admin',
+      label: 'Admin',
+      icon: <ShieldAlert className="w-4 h-4 text-red-400" />,
+    });
+  }
 
   return (
     <header className="h-16 border-b border-slate-800/80 bg-slate-900/90 backdrop-blur-md px-4 sm:px-6 flex items-center justify-between z-30 shrink-0 select-none">
@@ -53,13 +65,18 @@ export const Header: React.FC<HeaderProps> = ({
       <nav className="hidden md:flex items-center bg-slate-800/80 p-1 rounded-lg border border-slate-700/60 text-xs font-semibold space-x-1">
         {navItems.map((item) => {
           const isActive = activeTab === item.id;
+          const isItemAdmin = item.id === 'admin';
           return (
             <button
               key={item.id}
               onClick={() => setActiveTab(item.id)}
               className={`px-3 py-1.5 rounded-md transition flex items-center space-x-1.5 ${
                 isActive
-                  ? 'bg-slate-700 text-white shadow-sm font-bold'
+                  ? isItemAdmin
+                    ? 'bg-red-600 text-white shadow-sm font-bold'
+                    : 'bg-slate-700 text-white shadow-sm font-bold'
+                  : isItemAdmin
+                  ? 'text-red-400 hover:text-white hover:bg-red-950/60'
                   : 'text-slate-300 hover:text-white hover:bg-slate-800'
               }`}
             >
@@ -70,8 +87,36 @@ export const Header: React.FC<HeaderProps> = ({
         })}
       </nav>
 
-      {/* Right Controls: Device Mode, Voice CTA, Profile & Logout */}
+      {/* Right Controls: Device Mode, Voice CTA, Admin Quick Access, Profile & Logout */}
       <div className="flex items-center space-x-3">
+        
+        {/* Admin Quick Action Button */}
+        {isAdmin ? (
+          <button
+            onClick={() => setActiveTab('admin')}
+            className={`px-2.5 sm:px-3 py-1.5 rounded-md font-black text-xs flex items-center space-x-1.5 transition border ${
+              activeTab === 'admin'
+                ? 'bg-red-600 border-red-500 text-white shadow-md'
+                : 'bg-red-950/60 border-red-800/80 text-red-300 hover:bg-red-900'
+            }`}
+            title="Adminisztrátori Vezérlőpult megnyitása"
+          >
+            <ShieldAlert className="w-3.5 h-3.5 text-red-400" />
+            <span className="hidden sm:inline">Admin</span>
+          </button>
+        ) : (
+          /* Subtle toggle button for testing Admin privileges */
+          onToggleAdminRole && (
+            <button
+              onClick={onToggleAdminRole}
+              className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-[10px] text-slate-400 border border-slate-700 font-mono transition"
+              title="Kattints ide az Admin mód bekapcsolásához"
+            >
+              👑 Admin Mód
+            </button>
+          )
+        )}
+
         {/* Responsive Frame Switcher */}
         <div className="flex items-center bg-slate-800/90 p-0.5 rounded border border-slate-700 text-xs">
           <button
@@ -105,14 +150,19 @@ export const Header: React.FC<HeaderProps> = ({
           <span className="hidden sm:inline">Mesélj most</span>
         </button>
 
-        {/* User Profile Avatar */}
+        {/* User Profile Avatar with Admin Crown indicator */}
         <div
           onClick={() => setActiveTab('memory')}
-          className="flex items-center space-x-2 pl-2 border-l border-slate-800 cursor-pointer"
-          title={`Bejelentkezve: ${user.name} (Jelige: ${user.penName})`}
+          className="flex items-center space-x-2 pl-2 border-l border-slate-800 cursor-pointer relative"
+          title={`Bejelentkezve: ${user.name} (${user.role.toUpperCase()})`}
         >
-          <div className="w-8 h-8 rounded-md bg-gradient-to-br from-rose-900 to-amber-900 border border-rose-500/50 flex items-center justify-center text-xs font-black text-rose-100 shadow">
+          <div className="w-8 h-8 rounded-md bg-gradient-to-br from-rose-900 to-amber-900 border border-rose-500/50 flex items-center justify-center text-xs font-black text-rose-100 shadow relative">
             {user.name.charAt(0)}
+            {isAdmin && (
+              <span className="absolute -top-1.5 -right-1.5 text-[9px] bg-red-600 rounded-full px-1 text-white font-bold border border-slate-900 shadow">
+                👑
+              </span>
+            )}
           </div>
         </div>
 

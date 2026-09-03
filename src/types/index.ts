@@ -6,17 +6,34 @@ export type AiPersona =
   | 'humorist'   // Humorista – könnyed, derűs
   | 'writer';    // Író – irodalmi, regényes
 
+export type UserRole = 'admin' | 'moderator' | 'editor' | 'user';
+export type UserStatus = 'active' | 'suspended' | 'banned';
+
+export interface UserPermissions {
+  canVoiceRecord: boolean;
+  canCreateChapters: boolean;
+  canPostToBoard: boolean;
+  canUseAi: boolean;
+  canExportPdf: boolean;
+  canManageUsers: boolean;
+}
+
 export interface UserProfile {
   id: string;
   name: string;
   penName: string; // FateBoard jeligéje (pl. ÖregRóka72)
   email: string;
+  role: UserRole;
+  status: UserStatus;
+  banReason?: string;
+  permissions: UserPermissions;
   aiName: string; // pl. Krónikás Gergő
   aiPersona: AiPersona;
-  tier: 'free' | 'plus' | 'family';
+  tier: 'free' | 'plus' | 'family' | 'lifetime';
   streakDays: number;
   totalAudioHours: number;
   totalWords: number;
+  createdAt: string;
 }
 
 export interface ChatMessage {
@@ -109,4 +126,4 @@ export interface MultiPerspectiveEvent {
   perspectives: FamilyPerspective[];
 }
 
-export type ActiveTab = 'dashboard' | 'ai' | 'book' | 'board' | 'memory' | 'family';
+export type ActiveTab = 'dashboard' | 'ai' | 'book' | 'board' | 'memory' | 'family' | 'admin';

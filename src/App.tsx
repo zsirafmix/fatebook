@@ -1,8 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { ActiveTab, UserProfile, ChatMessage, FateEntity, ContradictionItem, BookChapter, BoardStory, AiPersona } from './types';
 import { 
-  initialUser, initialMessages, initialEntities, 
-  initialContradictions, initialChapters, initialBoardStories, initialFamilyEvent 
+  ActiveTab, UserProfile, ChatMessage, FateEntity, 
+  ContradictionItem, BookChapter, BoardStory, AiPersona, UserRole 
+} from './types';
+import { 
+  initialUser, initialSystemUsers, initialMessages, initialEntities, 
+  initialContradictions, initialChapters, initialBoardStories, initialFamilyEvent,
+  defaultPermissions, adminPermissions 
 } from './data/initialData';
 
 import { AuthScreen } from './components/auth/AuthScreen';
@@ -19,6 +23,8 @@ import { PrivacyCheckModal } from './components/board/PrivacyCheckModal';
 import { FateMemoryGraph } from './components/memory/FateMemoryGraph';
 import { ContradictionModal } from './components/memory/ContradictionModal';
 import { FateFamilyView } from './components/family/FateFamilyView';
+import { AdminPanel } from './components/admin/AdminPanel';
+import { Ban, LogOut } from 'lucide-react';
 
 export const App: React.FC = () => {
   // Authentication State
@@ -31,11 +37,21 @@ export const App: React.FC = () => {
     }
   });
 
+  // System Users Registry for Admin Panel
+  const [systemUsers, setSystemUsers] = useState<UserProfile[]>(() => {
+    try {
+      const saved = localStorage.getItem('fatebook_system_users');
+      return saved ? JSON.parse(saved) : initialSystemUsers;
+    } catch {
+      return initialSystemUsers;
+    }
+  });
+
   // App Navigation & Device View State
   const [activeTab, setActiveTab] = useState<ActiveTab>('dashboard');
   const [deviceMode, setDeviceMode] = useState<'desktop' | 'mobile'>('desktop');
 
-  // Core Data States (Initialized based on whether user is demo or newly registered)
+  // Core Data States
   const [messages, setMessages] = useState<ChatMessage[]>(() => {
     try {
       const isDemo = localStorage.getItem('fatebook_is_demo') === 'true';
@@ -80,7 +96,14 @@ export const App: React.FC = () => {
     }
   });
 
-  const [boardStories, setBoardStories] = useState<BoardStory[]>(initialBoardStories);
+  const [boardStories, setBoardStories] = useState<BoardStory[]>(() => {
+    try {
+      const saved = localStorage.getItem('fatebook_board_stories');
+      return saved ? JSON.parse(saved) : initialBoardStories;
+    } catch {
+      return initialBoardStories;
+    }
+  });
 
   // Modals
   const [isVoiceModalOpen, setIsVoiceModalOpen] = useState(false);
@@ -101,6 +124,15 @@ export const App: React.FC = () => {
 
   // Sync state to localStorage for persistence
   useEffect(() => {
+    try {
+      localStorage.setItem('fatebook_system_users', JSON.stringify(systemUsers));
+      localStorage.setItem('fatebook_board_stories', JSON.stringify(boardStories));
+    } catch (e) {
+      console.error(e);
+    }
+  }, [systemUsers, boardStories]);
+
+  useEffect(() => {
     if (user && localStorage.getItem('fatebook_is_demo') !== 'true') {
       try {
         localStorage.setItem('fatebook_chapters', JSON.stringify(chapters));
@@ -116,6 +148,16 @@ export const App: React.FC = () => {
   // Auth Handlers
   const handleLogin = (newUser: UserProfile, isNewRegistration = false) => {
     setUser(newUser);
+    
+    // Add to systemUsers registry if not already present
+    setSystemUsers((prev) => {
+      const exists = prev.find((u) => u.id === newUser.id || u.email === newUser.email);
+      if (exists) {
+        return prev.map((u) => (u.id === newUser.id || u.email === newUser.email ? newUser : u));
+      }
+      return [...prev, newUser];
+    });
+
     try {
       localStorage.setItem('fatebook_user', JSON.stringify(newUser));
       localStorage.setItem('fatebook_is_demo', 'false');
@@ -166,7 +208,7 @@ export const App: React.FC = () => {
       console.error(e);
     }
 
-    showToast('Belépve Péter demó fiókjába (előre kitöltött könyvvel).');
+    showToast('Belépve Péter Főadmin demó fiókjába (Minden jog engedélyezve).');
   };
 
   const handleLogout = () => {
@@ -189,8 +231,164 @@ export const App: React.FC = () => {
     showToast('Sikeresen kijelentkeztél.');
   };
 
+  // =========================================================================
+  // ADMIN MANAGEMENT HANDLERS
+  // =========================================================================
+  
+  // Toggle Admin Role for Current User
+  const handleToggleAdminRole = () => {
+    if (!user) return;
+    const newRole: UserRole = user.role === 'admin' ? 'user' : 'admin';
+    const updatedUser: UserProfile = {
+      ...user,
+      role: newRole,
+      permissions: newRole === 'admin' ? adminPermissions : defaultPermissions,
+    };
+    setUser(updatedUser);
+    setSystemUsers((prev) => prev.map((u) => (u.id === user.id ? updatedUser : u)));
+    try {
+      localStorage.setItem('fatebook_user', JSON.stringify(updatedUser));
+    } catch (e) {
+      console.error(e);
+    }
+    showToast(newRole === 'admin' ? '👑 Adminisztrátori mód bekapcsolva!' : '👤 Visszaváltva normál felhasználói módba.');
+  };
+
+  // Update Any User's Role, Tier or Permissions
+  const handleUpdateUser = (updatedUser: UserProfile) => {
+    setSystemUsers((prev) => prev.map((u) => (u.id === updatedUser.id ? updatedUser : u)));
+    if (user && user.id === updatedUser.id) {
+      setUser(updatedUser);
+      try {
+        localStorage.setItem('fatebook_user', JSON.stringify(updatedUser));
+      } catch (e) {
+        console.error(e);
+      }
+    }
+    showToast(`✅ ${updatedUser.name} jogosultságai sikeresen frissítve!`);
+  };
+
+  // Delete User
+  const handleDeleteUser = (userId: string) => {
+    setSystemUsers((prev) => prev.filter((u) => u.id !== userId));
+    if (user && user.id === userId) {
+      handleLogout();
+    }
+    showToast('🗑️ Felhasználó és fiókadatok véglegesen törölve.');
+  };
+
+  // Ban User
+  const handleBanUser = (userId: string, reason: string) => {
+    setSystemUsers((prev) =>
+      prev.map((u) =>
+        u.id === userId
+          ? {
+              ...u,
+              status: 'banned',
+              banReason: reason,
+              permissions: {
+                canVoiceRecord: false,
+                canCreateChapters: false,
+                canPostToBoard: false,
+                canUseAi: false,
+                canExportPdf: false,
+                canManageUsers: false,
+              },
+            }
+          : u
+      )
+    );
+    if (user && user.id === userId) {
+      setUser((prev) =>
+        prev
+          ? {
+              ...prev,
+              status: 'banned',
+              banReason: reason,
+            }
+          : null
+      );
+    }
+    showToast(`🚫 Felhasználó kitiltva a rendszerből.`);
+  };
+
+  // Unban User
+  const handleUnbanUser = (userId: string) => {
+    setSystemUsers((prev) =>
+      prev.map((u) =>
+        u.id === userId
+          ? {
+              ...u,
+              status: 'active',
+              banReason: undefined,
+              permissions: defaultPermissions,
+            }
+          : u
+      )
+    );
+    showToast(`✅ Kitiltás feloldva.`);
+  };
+
+  // Kick User Session
+  const handleKickUser = (userId: string) => {
+    if (user && user.id === userId) {
+      handleLogout();
+    } else {
+      showToast(`👢 Felhasználó munkamenete lezárva (kirúgva).`);
+    }
+  };
+
+  // Delete Chapter
+  const handleDeleteChapter = (chapterId: string) => {
+    setChapters((prev) => prev.filter((c) => c.id !== chapterId));
+    showToast('🗑️ Fejezet törölve a könyvből.');
+  };
+
+  // Delete Board Story
+  const handleDeleteBoardStory = (storyId: string) => {
+    setBoardStories((prev) => prev.filter((s) => s.id !== storyId));
+    showToast('🗑️ Történet eltávolítva a FateBoardról.');
+  };
+
+  // Delete FateMemory Entity
+  const handleDeleteEntity = (entityId: string) => {
+    setEntities((prev) => prev.filter((e) => e.id !== entityId));
+    showToast('🗑️ Entitás törölve a FateMemory tudásbázisból.');
+  };
+
+  // Factory Reset All Data
+  const handleResetAllData = () => {
+    setSystemUsers(initialSystemUsers);
+    setChapters(initialChapters);
+    setEntities(initialEntities);
+    setContradictions(initialContradictions);
+    setBoardStories(initialBoardStories);
+    setMessages(initialMessages);
+    setUser(initialUser);
+    try {
+      localStorage.setItem('fatebook_system_users', JSON.stringify(initialSystemUsers));
+      localStorage.setItem('fatebook_board_stories', JSON.stringify(initialBoardStories));
+      localStorage.setItem('fatebook_chapters', JSON.stringify(initialChapters));
+      localStorage.setItem('fatebook_entities', JSON.stringify(initialEntities));
+      localStorage.setItem('fatebook_contradictions', JSON.stringify(initialContradictions));
+      localStorage.setItem('fatebook_messages', JSON.stringify(initialMessages));
+      localStorage.setItem('fatebook_user', JSON.stringify(initialUser));
+      localStorage.setItem('fatebook_is_demo', 'true');
+    } catch (e) {
+      console.error(e);
+    }
+    showToast('✨ Minden rendszeradat visszaállítva az alapértelmezett állapotra.');
+  };
+
+  // =========================================================================
   // AI Chat Handlers
+  // =========================================================================
   const handleSendMessage = (text: string) => {
+    if (user?.permissions && !user.permissions.canUseAi) {
+      showToast('⚠️ Nincs jogosultságod a FateAI használatához (az adminisztrátor korlátozta).');
+      return;
+    }
+
     const userMsg: ChatMessage = {
       id: `msg-${Date.now()}`,
       sender: 'user',
@@ -200,7 +398,6 @@ export const App: React.FC = () => {
 
     setMessages((prev) => [...prev, userMsg]);
 
-    // Simulated thoughtful AI response
     setTimeout(() => {
       const responses = [
         `Milyen érzés volt ezt átélni? Ha most visszagondolsz arra a pillanatra, mit mondanál az akkori önmagadnak?`,
@@ -239,6 +436,11 @@ export const App: React.FC = () => {
 
   // Save Approved Chapter
   const handleSaveChapter = (newChapterData: Omit<BookChapter, 'id' | 'orderIndex' | 'pageNumber' | 'createdAt'>) => {
+    if (user?.permissions && !user.permissions.canCreateChapters) {
+      showToast('⚠️ Nincs jogosultságod fejezet mentéséhez (az adminisztrátor korlátozta).');
+      return;
+    }
+
     const newChapter: BookChapter = {
       ...newChapterData,
       id: `ch-${Date.now()}`,
@@ -301,6 +503,11 @@ export const App: React.FC = () => {
     era: string,
     location: string
   ) => {
+    if (user?.permissions && !user.permissions.canPostToBoard) {
+      showToast('⚠️ Nincs jogosultságod posztolni a FateBoardra (az adminisztrátor korlátozta).');
+      return;
+    }
+
     const newStory: BoardStory = {
       id: `story-${Date.now()}`,
       authorPenName: penName,
@@ -344,21 +551,56 @@ export const App: React.FC = () => {
     );
   }
 
+  // IF USER IS BANNED: Display Ban Screen
+  if (user.status === 'banned') {
+    return (
+      <div className="min-h-screen w-full bg-slate-950 flex flex-col items-center justify-center p-6 text-center select-none">
+        <div className="w-16 h-16 rounded-2xl bg-red-950/80 border border-red-800 flex items-center justify-center text-red-500 mb-4 shadow-xl">
+          <Ban className="w-8 h-8" />
+        </div>
+        <h1 className="text-2xl sm:text-3xl font-black text-white">
+          A fiókodat a Főadminisztrátor felfüggesztette
+        </h1>
+        <p className="text-red-400 font-semibold text-xs sm:text-sm mt-2 max-w-md">
+          {user.banReason || 'A közösségi irányelvek megsértése miatt a hozzáférésed korlátozásra került.'}
+        </p>
+        <p className="text-slate-500 text-xs mt-4">
+          Ha úgy gondolod, hogy ez tévedés, lépj kapcsolatba a rendszergazdával.
+        </p>
+        <button
+          onClick={handleLogout}
+          className="mt-6 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold rounded-xl transition flex items-center space-x-2"
+        >
+          <LogOut className="w-4 h-4" />
+          <span>Kijelentkezés a fiókból</span>
+        </button>
+      </div>
+    );
+  }
+
   const activeContradictionsCount = contradictions.filter((c) => c.status === 'pending').length;
+  const isAdmin = user.role === 'admin' || user.permissions?.canManageUsers;
 
   // IF AUTHENTICATED: Main FateBook Experience
   return (
     <div className="min-h-full flex flex-col bg-slate-950 text-slate-100 antialiased selection:bg-rose-500 selection:text-white">
       
-      {/* Top Navigation Bar with Profile & Logout */}
+      {/* Top Navigation Bar with Profile, Admin Action & Logout */}
       <Header
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         deviceMode={deviceMode}
         setDeviceMode={setDeviceMode}
-        openVoiceModal={() => setIsVoiceModalOpen(true)}
+        openVoiceModal={() => {
+          if (user.permissions && !user.permissions.canVoiceRecord) {
+            showToast('⚠️ A hangfelvétel készítése le van tiltva a fiókodban.');
+            return;
+          }
+          setIsVoiceModalOpen(true);
+        }}
         user={user}
         onLogout={handleLogout}
+        onToggleAdminRole={handleToggleAdminRole}
       />
 
       {/* Main Workspace Frame */}
@@ -379,7 +621,13 @@ export const App: React.FC = () => {
               boardStories={boardStories}
               contradictionsCount={activeContradictionsCount}
               setActiveTab={setActiveTab}
-              openVoiceModal={() => setIsVoiceModalOpen(true)}
+              openVoiceModal={() => {
+                if (user.permissions && !user.permissions.canVoiceRecord) {
+                  showToast('⚠️ A hangfelvétel készítése le van tiltva a fiókodban.');
+                  return;
+                }
+                setIsVoiceModalOpen(true);
+              }}
               openContradictionModal={() => setIsContradictionModalOpen(true)}
               onSearch={(q) => showToast(`🔍 Keresés a FateMemoryban: „${q}”`)}
               onAskDailyQuestion={() => {
@@ -395,7 +643,13 @@ export const App: React.FC = () => {
               user={user}
               messages={messages}
               onSendMessage={handleSendMessage}
-              openVoiceModal={() => setIsVoiceModalOpen(true)}
+              openVoiceModal={() => {
+                if (user.permissions && !user.permissions.canVoiceRecord) {
+                  showToast('⚠️ A hangfelvétel készítése le van tiltva a fiókodban.');
+                  return;
+                }
+                setIsVoiceModalOpen(true);
+              }}
               openChapterWizard={() => setIsChapterWizardOpen(true)}
               openCorrectionModal={() => {
                 const corr = prompt("Mit értett félre az AI? (pl. 'Nem 100 lírás, hanem 500 lírás érme volt'):");
@@ -410,7 +664,13 @@ export const App: React.FC = () => {
             <BookReader
               chapters={chapters}
               userName={user.name}
-              onOpenPrintWizard={() => setIsPrintWizardOpen(true)}
+              onOpenPrintWizard={() => {
+                if (user.permissions && !user.permissions.canExportPdf) {
+                  showToast('⚠️ A PDF nyomtatási és export funkció le van tiltva a fiókodban.');
+                  return;
+                }
+                setIsPrintWizardOpen(true);
+              }}
               onUpdateChapter={(id, newContent) => {
                 setChapters((prev) =>
                   prev.map((c) => (c.id === id ? { ...c, content: newContent } : c))
@@ -425,7 +685,13 @@ export const App: React.FC = () => {
           {activeTab === 'board' && (
             <FateBoard
               stories={boardStories}
-              onOpenPublishModal={() => setIsPrivacyModalOpen(true)}
+              onOpenPublishModal={() => {
+                if (user.permissions && !user.permissions.canPostToBoard) {
+                  showToast('⚠️ A posztolás le van tiltva a fiókodban (adminisztrátori korlátozás).');
+                  return;
+                }
+                setIsPrivacyModalOpen(true);
+              }}
               onReact={handleReactToBoardStory}
             />
           )}
@@ -448,12 +714,32 @@ export const App: React.FC = () => {
           {activeTab === 'family' && (
             <FateFamilyView familyEvent={initialFamilyEvent} />
           )}
+
+          {/* TAB 7: ADMIN PANEL (Available for Admins) */}
+          {activeTab === 'admin' && isAdmin && (
+            <AdminPanel
+              currentUser={user}
+              users={systemUsers}
+              chapters={chapters}
+              boardStories={boardStories}
+              entities={entities}
+              onUpdateUser={handleUpdateUser}
+              onDeleteUser={handleDeleteUser}
+              onBanUser={handleBanUser}
+              onUnbanUser={handleUnbanUser}
+              onKickUser={handleKickUser}
+              onDeleteChapter={handleDeleteChapter}
+              onDeleteBoardStory={handleDeleteBoardStory}
+              onDeleteEntity={handleDeleteEntity}
+              onResetAllData={handleResetAllData}
+            />
+          )}
         </div>
 
-        {/* Mobile Fixed Bottom Navigation Bar (Visible in mobile mode or on small screens) */}
+        {/* Mobile Fixed Bottom Navigation Bar */}
         <div className={deviceMode === 'mobile' ? 'block' : 'block md:hidden'}>
           <div className="fixed bottom-0 left-0 right-0 z-40">
-            <MobileBottomNav activeTab={activeTab} setActiveTab={setActiveTab} />
+            <MobileBottomNav activeTab={activeTab} setActiveTab={setActiveTab} isAdmin={isAdmin} />
           </div>
         </div>
       </main>

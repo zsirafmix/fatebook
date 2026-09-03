@@ -1,17 +1,113 @@
-import { UserProfile, ChatMessage, FateEntity, ContradictionItem, BookChapter, BoardStory, MultiPerspectiveEvent } from '../types';
+import { UserProfile, ChatMessage, FateEntity, ContradictionItem, BookChapter, BoardStory, MultiPerspectiveEvent, UserPermissions } from '../types';
+
+export const defaultPermissions: UserPermissions = {
+  canVoiceRecord: true,
+  canCreateChapters: true,
+  canPostToBoard: true,
+  canUseAi: true,
+  canExportPdf: true,
+  canManageUsers: false,
+};
+
+export const adminPermissions: UserPermissions = {
+  canVoiceRecord: true,
+  canCreateChapters: true,
+  canPostToBoard: true,
+  canUseAi: true,
+  canExportPdf: true,
+  canManageUsers: true,
+};
 
 export const initialUser: UserProfile = {
   id: 'user-peter-1',
-  name: 'Péter',
+  name: 'Péter (Főadmin)',
   penName: 'ÖregRóka72',
-  email: 'peter.kovacs@example.hu',
+  email: 'admin@fatebook.app',
+  role: 'admin',
+  status: 'active',
+  permissions: adminPermissions,
   aiName: 'Krónikás Gergő',
   aiPersona: 'biographer',
-  tier: 'plus',
+  tier: 'family',
   streakDays: 12,
   totalAudioHours: 48.2,
   totalWords: 84520,
+  createdAt: '2026-01-15',
 };
+
+export const initialSystemUsers: UserProfile[] = [
+  initialUser,
+  {
+    id: 'user-anna-2',
+    name: 'Nagy Anna',
+    penName: 'Csillagnéző88',
+    email: 'anna.nagy@balatonmail.hu',
+    role: 'editor',
+    status: 'active',
+    permissions: {
+      canVoiceRecord: true,
+      canCreateChapters: true,
+      canPostToBoard: true,
+      canUseAi: true,
+      canExportPdf: true,
+      canManageUsers: false,
+    },
+    aiName: 'Emlékőrző Lili',
+    aiPersona: 'friend',
+    tier: 'plus',
+    streakDays: 5,
+    totalAudioHours: 14.5,
+    totalWords: 24300,
+    createdAt: '2026-02-10',
+  },
+  {
+    id: 'user-bela-3',
+    name: 'Kovács Béla',
+    penName: 'BalatoniVándor',
+    email: 'bela72@freemail.hu',
+    role: 'user',
+    status: 'active',
+    permissions: {
+      canVoiceRecord: true,
+      canCreateChapters: true,
+      canPostToBoard: true,
+      canUseAi: true,
+      canExportPdf: false,
+      canManageUsers: false,
+    },
+    aiName: 'Krónikás',
+    aiPersona: 'biographer',
+    tier: 'free',
+    streakDays: 2,
+    totalAudioHours: 3.1,
+    totalWords: 4850,
+    createdAt: '2026-03-01',
+  },
+  {
+    id: 'user-spammer-4',
+    name: 'Bot / Kéretlen Felhasználó',
+    penName: 'CryptoSpammer99',
+    email: 'spam@botnet.xyz',
+    role: 'user',
+    status: 'banned',
+    banReason: 'Közösségi szabályzat megsértése: Kéretlen reklámok közzététele a FateBoardon.',
+    permissions: {
+      canVoiceRecord: false,
+      canCreateChapters: false,
+      canPostToBoard: false,
+      canUseAi: false,
+      canExportPdf: false,
+      canManageUsers: false,
+    },
+    aiName: 'Bot',
+    aiPersona: 'biographer',
+    tier: 'free',
+    streakDays: 0,
+    totalAudioHours: 0,
+    totalWords: 0,
+    createdAt: '2026-03-02',
+  },
+];
 
 export const initialMessages: ChatMessage[] = [
   {

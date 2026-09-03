@@ -43,17 +43,29 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin, onDemoLogin }) 
         return;
       }
 
+      const isAdminEmail = email.trim().toLowerCase().includes('admin');
       const newUser: UserProfile = {
         id: `user-${Date.now()}`,
         name: name.trim(),
         penName: penName.trim(),
         email: email.trim(),
+        role: isAdminEmail ? 'admin' : 'user',
+        status: 'active',
+        permissions: {
+          canVoiceRecord: true,
+          canCreateChapters: true,
+          canPostToBoard: true,
+          canUseAi: true,
+          canExportPdf: true,
+          canManageUsers: isAdminEmail,
+        },
         aiName: aiName.trim() || 'Krónikás',
         aiPersona,
         tier: 'free',
         streakDays: 1,
         totalAudioHours: 0,
         totalWords: 0,
+        createdAt: new Date().toISOString().split('T')[0],
       };
 
       confetti({
@@ -66,17 +78,29 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin, onDemoLogin }) 
       onLogin(newUser, true);
     } else {
       // Login existing user
+      const isAdminEmail = email.trim().toLowerCase().includes('admin');
       const existingUser: UserProfile = {
         id: `user-${Date.now()}`,
-        name: name.trim() || 'Új Látogató',
-        penName: penName.trim() || 'KrónikásUser',
+        name: name.trim() || (isAdminEmail ? 'Főadminisztrátor' : 'Visszatérő Olvasó'),
+        penName: penName.trim() || (isAdminEmail ? 'RootAdmin' : 'KrónikásUser'),
         email: email.trim(),
+        role: isAdminEmail ? 'admin' : 'user',
+        status: 'active',
+        permissions: {
+          canVoiceRecord: true,
+          canCreateChapters: true,
+          canPostToBoard: true,
+          canUseAi: true,
+          canExportPdf: true,
+          canManageUsers: isAdminEmail,
+        },
         aiName: aiName || 'Krónikás',
         aiPersona: 'biographer',
-        tier: 'free',
+        tier: 'plus',
         streakDays: 1,
         totalAudioHours: 0,
         totalWords: 0,
+        createdAt: new Date().toISOString().split('T')[0],
       };
 
       onLogin(existingUser, false);
