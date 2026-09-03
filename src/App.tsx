@@ -5,6 +5,7 @@ import {
   initialContradictions, initialChapters, initialBoardStories, initialFamilyEvent 
 } from './data/initialData';
 
+import { AuthScreen } from './components/auth/AuthScreen';
 import { Header } from './components/Header';
 import { MobileBottomNav } from './components/MobileBottomNav';
 import { LiveTileDashboard } from './components/dashboard/LiveTileDashboard';
@@ -20,10 +21,21 @@ import { ContradictionModal } from './components/memory/ContradictionModal';
 import { FateFamilyView } from './components/family/FateFamilyView';
 
 export const App: React.FC = () => {
-  // State
+  // Authentication State: Null by default for new visitors, or retrieved from localStorage
+  const [user, setUser] = useState<UserProfile | null>(() => {
+    try {
+      const saved = localStorage.getItem('fatebook_user');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
+
+  // App Navigation & Device View State
   const [activeTab, setActiveTab] = useState<ActiveTab>('dashboard');
   const [deviceMode, setDeviceMode] = useState<'desktop' | 'mobile'>('desktop');
-  const [user, setUser] = useState<UserProfile>(initialUser);
+
+  // Core Data States
   const [messages, setMessages] = useState<ChatMessage[]>(initialMessages);
   const [chapters, setChapters] = useState<BookChapter[]>(initialChapters);
   const [entities, setEntities] = useState<FateEntity[]>(initialEntities);
@@ -45,6 +57,38 @@ export const App: React.FC = () => {
     setTimeout(() => {
       setToastMessage(null);
     }, 3200);
+  };
+
+  // Auth Handlers
+  const handleLogin = (newUser: UserProfile) => {
+    setUser(newUser);
+    try {
+      localStorage.setItem('fatebook_user', JSON.stringify(newUser));
+    } catch (e) {
+      console.error(e);
+    }
+    showToast(`Üdvözlünk a FateBookban, ${newUser.name}! Az életkönyved megnyílt.`);
+  };
+
+  const handleDemoLogin = () => {
+    setUser(initialUser);
+    try {
+      localStorage.setItem('fatebook_user', JSON.stringify(initialUser));
+    } catch (e) {
+      console.error(e);
+    }
+    showToast('Belépve Péter demó fiókjába! Kipróbálhatod a teljes előre feltöltött élményt.');
+  };
+
+  const handleLogout = () => {
+    try {
+      localStorage.removeItem('fatebook_user');
+    } catch (e) {
+      console.error(e);
+    }
+    setUser(null);
+    setActiveTab('dashboard');
+    showToast('Sikeresen kijelentkeztél.');
   };
 
   // AI Chat Handlers
@@ -82,10 +126,16 @@ export const App: React.FC = () => {
   // Finish Voice Session to Chapter
   const handleFinishVoiceSession = (_transcript: string, durationSeconds: number) => {
     setIsVoiceModalOpen(false);
-    setUser((prev) => ({
-      ...prev,
-      totalAudioHours: +(prev.totalAudioHours + durationSeconds / 3600).toFixed(1),
-    }));
+    if (user) {
+      setUser((prev) =>
+        prev
+          ? {
+              ...prev,
+              totalAudioHours: +(prev.totalAudioHours + durationSeconds / 3600).toFixed(1),
+            }
+          : prev
+      );
+    }
     setIsChapterWizardOpen(true);
   };
 
@@ -100,10 +150,9 @@ export const App: React.FC = () => {
     };
 
     setChapters((prev) => [...prev, newChapter]);
-    setUser((prev) => ({
-      ...prev,
-      totalWords: prev.totalWords + 480,
-    }));
+    if (user) {
+      setUser((prev) => (prev ? { ...prev, totalWords: prev.totalWords + 480 } : prev));
+    }
     showToast('📖 Új fejezet hozzáadva a Könyvemhez!');
     setActiveTab('book');
   };
@@ -181,14 +230,27 @@ export const App: React.FC = () => {
 
   // Select Persona
   const handleSelectPersona = (persona: AiPersona) => {
-    setUser((prev) => ({ ...prev, aiPersona: persona }));
+    if (user) {
+      setUser((prev) => (prev ? { ...prev, aiPersona: persona } : prev));
+    }
     showToast(`🎭 AI Személyiség frissítve: ${persona}`);
   };
 
+  // IF NOT AUTHENTICATED: Display Registration / Login Gate Screen
+  if (!user) {
+    return (
+      <AuthScreen
+        onLogin={handleLogin}
+        onDemoLogin={handleDemoLogin}
+      />
+    );
+  }
+
+  // IF AUTHENTICATED: Main FateBook Experience
   return (
     <div className="min-h-full flex flex-col bg-slate-950 text-slate-100 antialiased selection:bg-rose-500 selection:text-white">
       
-      {/* Top Navigation */}
+      {/* Top Navigation Bar with Profile & Logout */}
       <Header
         activeTab={activeTab}
         setActiveTab={setActiveTab}
@@ -196,6 +258,7 @@ export const App: React.FC = () => {
         setDeviceMode={setDeviceMode}
         openVoiceModal={() => setIsVoiceModalOpen(true)}
         user={user}
+        onLogout={handleLogout}
       />
 
       {/* Main Workspace Frame */}

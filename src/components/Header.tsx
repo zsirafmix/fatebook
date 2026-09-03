@@ -1,6 +1,6 @@
 import React from 'react';
 import { ActiveTab, UserProfile } from '../types';
-import { BookOpen, MessageSquare, Home, Pin, Brain, Users, Mic, Monitor, Smartphone } from 'lucide-react';
+import { BookOpen, MessageSquare, Home, Pin, Brain, Users, Mic, Monitor, Smartphone, LogOut } from 'lucide-react';
 
 interface HeaderProps {
   activeTab: ActiveTab;
@@ -9,6 +9,7 @@ interface HeaderProps {
   setDeviceMode: (mode: 'desktop' | 'mobile') => void;
   openVoiceModal: () => void;
   user: UserProfile;
+  onLogout: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -18,6 +19,7 @@ export const Header: React.FC<HeaderProps> = ({
   setDeviceMode,
   openVoiceModal,
   user,
+  onLogout,
 }) => {
   const navItems: { id: ActiveTab; label: string; icon: React.ReactNode }[] = [
     { id: 'dashboard', label: 'Kezdőlap', icon: <Home className="w-4 h-4" /> },
@@ -68,7 +70,7 @@ export const Header: React.FC<HeaderProps> = ({
         })}
       </nav>
 
-      {/* Right Controls: Device Mode, Voice CTA, Profile */}
+      {/* Right Controls: Device Mode, Voice CTA, Profile & Logout */}
       <div className="flex items-center space-x-3">
         {/* Responsive Frame Switcher */}
         <div className="flex items-center bg-slate-800/90 p-0.5 rounded border border-slate-700 text-xs">
@@ -103,16 +105,25 @@ export const Header: React.FC<HeaderProps> = ({
           <span className="hidden sm:inline">Mesélj most</span>
         </button>
 
-        {/* User Profile Avatar with penName tooltip */}
+        {/* User Profile Avatar */}
         <div
           onClick={() => setActiveTab('memory')}
           className="flex items-center space-x-2 pl-2 border-l border-slate-800 cursor-pointer"
-          title={`Bejelentkezve: ${user.name} (FateBoard jelige: ${user.penName})`}
+          title={`Bejelentkezve: ${user.name} (Jelige: ${user.penName})`}
         >
-          <div className="w-8 h-8 rounded bg-gradient-to-br from-rose-900 to-amber-900 border border-rose-500/50 flex items-center justify-center text-xs font-black text-rose-100 shadow">
+          <div className="w-8 h-8 rounded-md bg-gradient-to-br from-rose-900 to-amber-900 border border-rose-500/50 flex items-center justify-center text-xs font-black text-rose-100 shadow">
             {user.name.charAt(0)}
           </div>
         </div>
+
+        {/* Logout Button */}
+        <button
+          onClick={onLogout}
+          title="Kijelentkezés"
+          className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-slate-800 rounded-lg transition"
+        >
+          <LogOut className="w-4 h-4" />
+        </button>
       </div>
     </header>
   );
