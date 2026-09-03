@@ -31,7 +31,14 @@ export const App: React.FC = () => {
   const [user, setUser] = useState<UserProfile | null>(() => {
     try {
       const saved = localStorage.getItem('fatebook_user');
-      return saved ? JSON.parse(saved) : null;
+      if (!saved) return null;
+      const parsed = JSON.parse(saved);
+      return {
+        ...parsed,
+        role: parsed.role || 'admin', // default to admin for existing sessions so user has admin access
+        status: parsed.status || 'active',
+        permissions: parsed.permissions || adminPermissions,
+      };
     } catch {
       return null;
     }
@@ -41,7 +48,14 @@ export const App: React.FC = () => {
   const [systemUsers, setSystemUsers] = useState<UserProfile[]>(() => {
     try {
       const saved = localStorage.getItem('fatebook_system_users');
-      return saved ? JSON.parse(saved) : initialSystemUsers;
+      if (!saved) return initialSystemUsers;
+      const parsed: UserProfile[] = JSON.parse(saved);
+      return parsed.map((u) => ({
+        ...u,
+        role: u.role || 'user',
+        status: u.status || 'active',
+        permissions: u.permissions || defaultPermissions,
+      }));
     } catch {
       return initialSystemUsers;
     }

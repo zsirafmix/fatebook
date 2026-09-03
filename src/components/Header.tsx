@@ -154,7 +154,7 @@ export const Header: React.FC<HeaderProps> = ({
         <div
           onClick={() => setActiveTab('memory')}
           className="flex items-center space-x-2 pl-2 border-l border-slate-800 cursor-pointer relative"
-          title={`Bejelentkezve: ${user.name} (${user.role.toUpperCase()})`}
+          title={`Bejelentkezve: ${user.name} (${(user.role || 'user').toUpperCase()})`}
         >
           <div className="w-8 h-8 rounded-md bg-gradient-to-br from-rose-900 to-amber-900 border border-rose-500/50 flex items-center justify-center text-xs font-black text-rose-100 shadow relative">
             {user.name.charAt(0)}
