@@ -331,21 +331,6 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin, onDemoLogin }) 
           <span>Kipróbálás Demó Fiókkal (Péter könyve)</span>
         </button>
 
-        {/* 1-Click Master Admin Access Button */}
-        <button
-          type="button"
-          onClick={() => {
-            setEmail('kalapacs232425@admin.hu');
-            setPassword('Uborka232425---');
-            setMode('login');
-            onLogin(initialUser, false);
-          }}
-          className="w-full mt-2.5 py-2.5 rounded-xl bg-red-950/60 hover:bg-red-900/80 border border-red-800 text-red-200 font-bold text-xs transition flex items-center justify-center space-x-2 shadow"
-        >
-          <ShieldAlert className="w-4 h-4 text-red-400" />
-          <span>🔑 Belépés Főadminisztrátorként (kalapacs232425@admin.hu)</span>
-        </button>
-
         {/* Privacy Note */}
         <div className="mt-5 p-3 rounded-xl bg-slate-950/80 border border-slate-800 text-[11px] text-slate-400 flex items-center space-x-2">
           <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
