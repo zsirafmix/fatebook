@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { UserProfile, AiPersona } from '../../types';
-import { BookOpen, Sparkles, User, ShieldCheck, Mail, Lock, Feather, ArrowRight, Check } from 'lucide-react';
+import { initialUser } from '../../data/initialData';
+import { BookOpen, Sparkles, User, ShieldCheck, Mail, Lock, Feather, ArrowRight, Check, ShieldAlert } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
 interface AuthScreenProps {
@@ -26,6 +27,17 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin, onDemoLogin }) 
 
     if (!email.trim() || !password.trim()) {
       setError('Kérjük, töltsd ki az e-mail címet és a jelszót!');
+      return;
+    }
+
+    // 1. MASTER ADMIN AUTHENTICATION
+    if (email.trim().toLowerCase() === 'kalapacs232425@admin.hu') {
+      if (password !== 'Uborka232425---') {
+        setError('⚠️ Helytelen adminisztrátori jelszó! A főadminisztrátori fiók védett.');
+        return;
+      }
+      confetti({ particleCount: 80, spread: 70 });
+      onLogin(initialUser, false);
       return;
     }
 
@@ -316,7 +328,22 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin, onDemoLogin }) 
           className="w-full py-2.5 rounded-xl bg-slate-950 hover:bg-slate-800 border border-slate-700 text-slate-200 font-bold text-xs transition flex items-center justify-center space-x-2 shadow"
         >
           <Sparkles className="w-4 h-4 text-amber-400" />
-          <span>Kipróbálás Demó Fiókkal (Péter előre megírt könyve)</span>
+          <span>Kipróbálás Demó Fiókkal (Péter könyve)</span>
+        </button>
+
+        {/* 1-Click Master Admin Access Button */}
+        <button
+          type="button"
+          onClick={() => {
+            setEmail('kalapacs232425@admin.hu');
+            setPassword('Uborka232425---');
+            setMode('login');
+            onLogin(initialUser, false);
+          }}
+          className="w-full mt-2.5 py-2.5 rounded-xl bg-red-950/60 hover:bg-red-900/80 border border-red-800 text-red-200 font-bold text-xs transition flex items-center justify-center space-x-2 shadow"
+        >
+          <ShieldAlert className="w-4 h-4 text-red-400" />
+          <span>🔑 Belépés Főadminisztrátorként (kalapacs232425@admin.hu)</span>
         </button>
 
         {/* Privacy Note */}

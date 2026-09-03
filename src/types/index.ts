@@ -43,6 +43,8 @@ export interface ChatMessage {
   timestamp: string;
   audioDurationSeconds?: number;
   extractedEntities?: string[];
+  isEncrypted?: boolean;
+  encryptedText?: string;
 }
 
 export type EntityConfidence = 'verified' | 'hypothesis';
@@ -124,6 +126,28 @@ export interface MultiPerspectiveEvent {
   year: string;
   place: string;
   perspectives: FamilyPerspective[];
+}
+
+export interface BackupSnapshot {
+  id: string;
+  timestamp: string;
+  createdAtHuman: string;
+  type: 'auto_11am' | 'manual';
+  stats: {
+    usersCount: number;
+    chaptersCount: number;
+    messagesCount: number;
+    entitiesCount: number;
+    boardStoriesCount: number;
+  };
+  data: {
+    users: UserProfile[];
+    chapters: BookChapter[];
+    messages: ChatMessage[];
+    entities: FateEntity[];
+    contradictions: ContradictionItem[];
+    boardStories: BoardStory[];
+  };
 }
 
 export type ActiveTab = 'dashboard' | 'ai' | 'book' | 'board' | 'memory' | 'family' | 'admin';

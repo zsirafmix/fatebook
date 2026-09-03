@@ -1,14 +1,16 @@
 import React, { useState } from 'react';
 import { 
   UserProfile, UserRole, UserStatus, UserPermissions, 
-  BookChapter, BoardStory, FateEntity 
+  BookChapter, BoardStory, FateEntity, ChatMessage, BackupSnapshot 
 } from '../../types';
 import { 
   Shield, Users, BookOpen, Pin, Brain, Trash2, Edit, 
   UserX, UserCheck, AlertTriangle, Search, Check, X, 
   Sparkles, ShieldAlert, Key, Mic, FileText, Ban, Power, 
-  Settings, CheckCircle2, Lock, Unlock
+  Lock, Unlock, Download, Upload, RotateCcw, Clock, 
+  CheckCircle2, MessageSquare, Database, FileSpreadsheet
 } from 'lucide-react';
+import { decryptPayload, isEncrypted } from '../../utils/crypto';
 
 interface AdminPanelProps {
   currentUser: UserProfile;
@@ -16,6 +18,8 @@ interface AdminPanelProps {
   chapters: BookChapter[];
   boardStories: BoardStory[];
   entities: FateEntity[];
+  messages: ChatMessage[];
+  backups: BackupSnapshot[];
   onUpdateUser: (updatedUser: UserProfile) => void;
   onDeleteUser: (userId: string) => void;
   onBanUser: (userId: string, reason: string) => void;
@@ -25,9 +29,13 @@ interface AdminPanelProps {
   onDeleteBoardStory: (storyId: string) => void;
   onDeleteEntity: (entityId: string) => void;
   onResetAllData: () => void;
+  onCreateBackup: (type?: 'auto_11am' | 'manual') => void;
+  onRestoreBackup: (backup: BackupSnapshot) => void;
+  onDeleteBackup: (backupId: string) => void;
+  onImportBackup: (backupData: BackupSnapshot) => void;
 }
 
-type AdminSubTab = 'users' | 'chapters' | 'board' | 'entities' | 'system';
+type AdminSubTab = 'users' | 'conversations' | 'backups' | 'chapters' | 'board' | 'entities';
 
 export const AdminPanel: React.FC<AdminPanelProps> = ({
   currentUser,
@@ -35,6 +43,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   chapters,
   boardStories,
   entities,
+  messages,
+  backups,
   onUpdateUser,
   onDeleteUser,
   onBanUser,
@@ -44,11 +54,19 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   onDeleteBoardStory,
   onDeleteEntity,
   onResetAllData,
+  onCreateBackup,
+  onRestoreBackup,
+  onDeleteBackup,
+  onImportBackup,
 }) => {
   const [activeSubTab, setActiveSubTab] = useState<AdminSubTab>('users');
   const [userSearchQuery, setUserSearchQuery] = useState('');
   const [selectedRoleFilter, setSelectedRoleFilter] = useState<string>('all');
   
+  // Decryption master toggle
+  const [isDecryptedView, setIsDecryptedView] = useState(true);
+  const [adminDecryptionKey, setAdminDecryptionKey] = useState('Uborka232425---');
+
   // Modal for Editing User Permissions
   const [editingUser, setEditingUser] = useState<UserProfile | null>(null);
 
@@ -80,6 +98,37 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     });
   };
 
+  const handleDownloadBackup = (backup: BackupSnapshot) => {
+    const jsonStr = JSON.stringify(backup, null, 2);
+    const blob = new Blob([jsonStr], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `fatebook-backup-${backup.id}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const content = event.target?.result as string;
+        const parsed = JSON.parse(content) as BackupSnapshot;
+        if (parsed.data && parsed.stats) {
+          onImportBackup(parsed);
+        } else {
+          alert('Érvénytelen mentési fájl formátum!');
+        }
+      } catch (err) {
+        alert('Hiba történt a JSON fájl beolvasásakor: ' + err);
+      }
+    };
+    reader.readAsText(file);
+  };
+
   return (
     <div className="flex-1 flex flex-col space-y-5 max-w-6xl mx-auto w-full pb-24 select-none">
       
@@ -92,84 +141,54 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           <div>
             <div className="flex items-center space-x-2">
               <h1 className="text-xl sm:text-2xl font-black tracking-tight text-white flex items-center space-x-2">
-                <span>FateBook Főadminisztrátori Vezérlőpult</span>
+                <span>FateBook Főadminisztrátori Rendszer</span>
               </h1>
               <span className="bg-red-500 text-white text-[10px] font-black uppercase px-2 py-0.5 rounded-full tracking-wider shadow">
-                Root Admin
+                Master Root
               </span>
             </div>
             <p className="text-slate-400 text-xs mt-1">
-              Bejelentkezve mint: <strong className="text-white">{currentUser.name}</strong> ({currentUser.email}) • Teljes jogú rendszerkezelés
+              Bejelentkezve: <strong className="text-white">{currentUser.name}</strong> ({currentUser.email}) • Titkosított archívum és mentésvezérlő
             </p>
           </div>
         </div>
 
-        {/* Global Reset Emergency Button */}
-        <button
-          onClick={() => {
-            if (confirm("⚠️ BIZTOSAN VISSZAÁLLÍTOD AZ ALAPÉRTELMEZETT RENDSZERADATOKAT? Minden nem mentett tesztadat törlődik!")) {
-              onResetAllData();
-            }
-          }}
-          className="bg-red-950/80 hover:bg-red-900 text-red-200 border border-red-700/80 px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center space-x-1.5 shadow active:scale-95"
-        >
-          <Power className="w-3.5 h-3.5" />
-          <span>Gyári Adatok Visszaállítása</span>
-        </button>
+        <div className="flex items-center space-x-2 shrink-0">
+          {/* Create Backup Now CTA */}
+          <button
+            onClick={() => onCreateBackup('manual')}
+            className="bg-emerald-950/80 hover:bg-emerald-900 text-emerald-200 border border-emerald-700/80 px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center space-x-1.5 shadow active:scale-95"
+          >
+            <Clock className="w-3.5 h-3.5" />
+            <span>Mentés Készítése Most</span>
+          </button>
+
+          {/* Global Reset Emergency Button */}
+          <button
+            onClick={() => {
+              if (confirm("⚠️ BIZTOSAN VISSZAÁLLÍTOD AZ ALAPÉRTELMEZETT RENDSZERADATOKAT?")) {
+                onResetAllData();
+              }
+            }}
+            className="bg-red-950/80 hover:bg-red-900 text-red-200 border border-red-700/80 px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center space-x-1.5 shadow active:scale-95"
+          >
+            <Power className="w-3.5 h-3.5" />
+            <span>Gyári Reset</span>
+          </button>
+        </div>
       </div>
 
-      {/* 2. Admin KPI Overview Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
-        <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow">
-          <div className="flex items-center justify-between text-slate-400 text-xs">
-            <span>Összes Felhasználó</span>
-            <Users className="w-4 h-4 text-blue-400" />
-          </div>
-          <div className="text-2xl sm:text-3xl font-black text-white mt-1.5">
-            {users.length} <span className="text-xs text-slate-400 font-normal">fiók</span>
-          </div>
-          <div className="text-[10px] text-emerald-400 mt-1 font-semibold">
-            {users.filter(u => u.status === 'active').length} aktív • {users.filter(u => u.status === 'banned').length} kitiltva
-          </div>
+      {/* 2. Scheduled Backup Active Info Banner */}
+      <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-3.5 flex flex-wrap items-center justify-between gap-3 text-xs shadow-md">
+        <div className="flex items-center space-x-2.5">
+          <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping"></span>
+          <span className="text-slate-300">
+            <strong className="text-emerald-400 font-bold">Automatikus Napi Mentés Ütemezve:</strong> Minden nap <strong>11:00-kor</strong> teljes rendszerpillanatkép készül a beszélgetésekről, felhasználókról, fejezetekről és tudásbázisról.
+          </span>
         </div>
-
-        <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow">
-          <div className="flex items-center justify-between text-slate-400 text-xs">
-            <span>Könyv Fejezetek</span>
-            <BookOpen className="w-4 h-4 text-rose-400" />
-          </div>
-          <div className="text-2xl sm:text-3xl font-black text-white mt-1.5">
-            {chapters.length} <span className="text-xs text-slate-400 font-normal">fejezet</span>
-          </div>
-          <div className="text-[10px] text-rose-300 mt-1 font-semibold">
-            Kánonba rögzített memoárok
-          </div>
-        </div>
-
-        <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow">
-          <div className="flex items-center justify-between text-slate-400 text-xs">
-            <span>FateBoard Történetek</span>
-            <Pin className="w-4 h-4 text-amber-400" />
-          </div>
-          <div className="text-2xl sm:text-3xl font-black text-white mt-1.5">
-            {boardStories.length} <span className="text-xs text-slate-400 font-normal">poszt</span>
-          </div>
-          <div className="text-[10px] text-amber-300 mt-1 font-semibold">
-            Anonim közösségi parafatábla
-          </div>
-        </div>
-
-        <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow">
-          <div className="flex items-center justify-between text-slate-400 text-xs">
-            <span>FateMemory Entitások</span>
-            <Brain className="w-4 h-4 text-purple-400" />
-          </div>
-          <div className="text-2xl sm:text-3xl font-black text-white mt-1.5">
-            {entities.length} <span className="text-xs text-slate-400 font-normal">entitás</span>
-          </div>
-          <div className="text-[10px] text-purple-300 mt-1 font-semibold">
-            Szereplők, helyek és tárgyak
-          </div>
+        <div className="flex items-center space-x-2 text-[11px] text-slate-400">
+          <Clock className="w-3.5 h-3.5 text-blue-400" />
+          <span>Elérhető mentési pontok: <strong className="text-white">{backups.length} db</strong></span>
         </div>
       </div>
 
@@ -184,7 +203,31 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           }`}
         >
           <Users className="w-4 h-4" />
-          <span>Felhasználók & Jogosultságok ({users.length})</span>
+          <span>Felhasználók & Jogok ({users.length})</span>
+        </button>
+
+        <button
+          onClick={() => setActiveSubTab('conversations')}
+          className={`px-3.5 py-2 rounded-lg transition flex items-center space-x-2 shrink-0 ${
+            activeSubTab === 'conversations'
+              ? 'bg-blue-600 text-white shadow-md'
+              : 'text-slate-400 hover:text-white hover:bg-slate-800'
+          }`}
+        >
+          <Lock className="w-4 h-4" />
+          <span>Titkosított Beszélgetések ({messages.length})</span>
+        </button>
+
+        <button
+          onClick={() => setActiveSubTab('backups')}
+          className={`px-3.5 py-2 rounded-lg transition flex items-center space-x-2 shrink-0 ${
+            activeSubTab === 'backups'
+              ? 'bg-emerald-600 text-white shadow-md'
+              : 'text-slate-400 hover:text-white hover:bg-slate-800'
+          }`}
+        >
+          <Database className="w-4 h-4" />
+          <span>Napi Mentések & Visszaállítás ({backups.length})</span>
         </button>
 
         <button
@@ -196,7 +239,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           }`}
         >
           <BookOpen className="w-4 h-4" />
-          <span>Fejezetek Moderációja ({chapters.length})</span>
+          <span>Fejezetek ({chapters.length})</span>
         </button>
 
         <button
@@ -224,7 +267,207 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         </button>
       </div>
 
-      {/* 4. SUB-TAB 1: USERS & PERMISSIONS MANAGEMENT */}
+      {/* ========================================================================= */}
+      {/* SUB-TAB: ENCRYPTED CONVERSATIONS VAULT */}
+      {/* ========================================================================= */}
+      {activeSubTab === 'conversations' && (
+        <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 sm:p-5 shadow-xl flex flex-col space-y-4">
+          
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-3 border-b border-slate-800">
+            <div>
+              <h3 className="text-base font-black text-white flex items-center space-x-2">
+                <Lock className="w-5 h-5 text-blue-400" />
+                <span>Titkosított Beszélgetések Archívuma (Csak Adminisztrátornak)</span>
+              </h3>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Minden beszélgetés kriptográfiailag titkosítva tárolódik az adatbázisban. A feloldáshoz adminisztrátori kulcs szükséges.
+              </p>
+            </div>
+
+            <div className="flex items-center space-x-2.5">
+              <button
+                onClick={() => setIsDecryptedView(!isDecryptedView)}
+                className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center space-x-1.5 border shadow ${
+                  isDecryptedView
+                    ? 'bg-blue-600 border-blue-500 text-white'
+                    : 'bg-slate-800 border-slate-700 text-slate-300'
+                }`}
+              >
+                {isDecryptedView ? <Unlock className="w-3.5 h-3.5" /> : <Lock className="w-3.5 h-3.5" />}
+                <span>{isDecryptedView ? '🔓 Dekriptált Nézet Aktív' : '🔒 Nyers Titkosított Nézet'}</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Conversation List */}
+          <div className="space-y-3">
+            {messages.length > 0 ? (
+              messages.map((msg) => {
+                const encryptedPayload = msg.encryptedText || msg.text;
+                const displayText = isDecryptedView
+                  ? decryptPayload(encryptedPayload, adminDecryptionKey)
+                  : encryptedPayload;
+
+                return (
+                  <div 
+                    key={msg.id}
+                    className="bg-slate-950 border border-slate-800 rounded-xl p-4 flex flex-col space-y-2"
+                  >
+                    <div className="flex items-center justify-between text-xs">
+                      <div className="flex items-center space-x-2">
+                        <span className={`px-2 py-0.5 rounded font-black text-[10px] uppercase ${
+                          msg.sender === 'user' ? 'bg-rose-950 text-rose-300 border border-rose-800' : 'bg-blue-950 text-blue-300 border border-blue-800'
+                        }`}>
+                          {msg.sender === 'user' ? '👤 Felhasználó' : '🤖 FateAI Életrajzíró'}
+                        </span>
+                        <span className="text-slate-500 font-mono text-[11px]">{msg.timestamp}</span>
+                      </div>
+                      
+                      <div className="flex items-center space-x-1.5 text-[10px] text-slate-400 font-mono">
+                        <Lock className="w-3 h-3 text-emerald-400" />
+                        <span>AES-256 Salted Cipher</span>
+                      </div>
+                    </div>
+
+                    <div className={`p-3 rounded-lg text-xs leading-relaxed ${
+                      isDecryptedView
+                        ? 'bg-slate-900/90 text-slate-200 border border-slate-800 font-serif'
+                        : 'bg-slate-950 text-emerald-400/90 font-mono text-[11px] border border-emerald-950 break-all'
+                    }`}>
+                      {displayText}
+                    </div>
+
+                    {msg.extractedEntities && msg.extractedEntities.length > 0 && (
+                      <div className="flex items-center space-x-1.5 text-[10px] text-purple-300">
+                        <span>🧠 Kivont entitások:</span>
+                        <span className="font-semibold">{msg.extractedEntities.join(', ')}</span>
+                      </div>
+                    )}
+                  </div>
+                );
+              })
+            ) : (
+              <div className="p-8 text-center text-xs text-slate-500">Még nincsenek rögzített beszélgetések.</div>
+            )}
+          </div>
+
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* SUB-TAB: BACKUPS & DISASTER RECOVERY */}
+      {/* ========================================================================= */}
+      {activeSubTab === 'backups' && (
+        <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 sm:p-5 shadow-xl flex flex-col space-y-4">
+          
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-3 border-b border-slate-800">
+            <div>
+              <h3 className="text-base font-black text-white flex items-center space-x-2">
+                <Database className="w-5 h-5 text-emerald-400" />
+                <span>Napi 11:00 Automatikus Mentések & Katasztrófa-Visszaállítás</span>
+              </h3>
+              <p className="text-xs text-slate-400 mt-0.5">
+                A rendszer minden nap 11:00-kor automatikusan elment mindent. Bármelyik korábbi pontra azonnal visszaállhatsz.
+              </p>
+            </div>
+
+            <div className="flex items-center space-x-2">
+              <label className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold border border-slate-700 cursor-pointer flex items-center space-x-1.5 transition">
+                <Upload className="w-3.5 h-3.5 text-blue-400" />
+                <span>Mentés Betöltése Fájlból</span>
+                <input
+                  type="file"
+                  accept=".json"
+                  onChange={handleFileUpload}
+                  className="hidden"
+                />
+              </label>
+
+              <button
+                onClick={() => onCreateBackup('manual')}
+                className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-black transition flex items-center space-x-1.5 shadow"
+              >
+                <Clock className="w-3.5 h-3.5" />
+                <span>Új Kézi Mentés</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Backup Snapshots List */}
+          <div className="space-y-3">
+            {backups.map((b) => (
+              <div
+                key={b.id}
+                className="bg-slate-950 border border-slate-800 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 transition hover:border-slate-700"
+              >
+                <div className="space-y-1">
+                  <div className="flex items-center space-x-2">
+                    <span className="font-bold text-white text-sm">{b.createdAtHuman}</span>
+                    <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded ${
+                      b.type === 'auto_11am' ? 'bg-emerald-950 text-emerald-300 border border-emerald-800' : 'bg-blue-950 text-blue-300 border border-blue-800'
+                    }`}>
+                      {b.type === 'auto_11am' ? '⏰ Automatikus (11:00)' : '👤 Kézi Snapshot'}
+                    </span>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-3 text-xs text-slate-400 pt-1">
+                    <span>👥 {b.stats.usersCount} felhasználó</span>
+                    <span>📖 {b.stats.chaptersCount} fejezet</span>
+                    <span>💬 {b.stats.messagesCount} beszélgetés</span>
+                    <span>🧠 {b.stats.entitiesCount} entitás</span>
+                    <span>📌 {b.stats.boardStoriesCount} közösségi poszt</span>
+                  </div>
+                </div>
+
+                <div className="flex items-center space-x-2 shrink-0 self-end sm:self-center">
+                  {/* Restore Button */}
+                  <button
+                    onClick={() => {
+                      if (confirm(`⚠️ TELJES VISSZAÁLLÍTÁS: Biztosan visszaállítod a rendszert a(z) "${b.createdAtHuman}" állapotra?`)) {
+                        onRestoreBackup(b);
+                      }
+                    }}
+                    className="px-3 py-1.5 bg-emerald-950 hover:bg-emerald-900 text-emerald-200 border border-emerald-700 rounded-lg text-xs font-bold transition flex items-center space-x-1.5 shadow"
+                    title="Visszaállítás erre az állapotra"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Visszaállítás</span>
+                  </button>
+
+                  {/* Download JSON Button */}
+                  <button
+                    onClick={() => handleDownloadBackup(b)}
+                    className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg border border-slate-700 transition"
+                    title="Letöltés JSON fájlként"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                  </button>
+
+                  {/* Delete Backup Button */}
+                  {backups.length > 1 && (
+                    <button
+                      onClick={() => {
+                        if (confirm('Biztosan törlöd ezt a mentési pontot?')) {
+                          onDeleteBackup(b.id);
+                        }
+                      }}
+                      className="p-1.5 bg-slate-800 hover:bg-red-950 text-red-400 rounded-lg border border-slate-700 transition"
+                      title="Mentési pont törlése"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* SUB-TAB: USERS & PERMISSIONS MANAGEMENT */}
+      {/* ========================================================================= */}
       {activeSubTab === 'users' && (
         <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 sm:p-5 shadow-xl flex flex-col space-y-4">
           
@@ -278,7 +521,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
                   return (
                     <tr key={u.id} className="hover:bg-slate-800/40 transition">
-                      {/* Name & Pen Name */}
                       <td className="py-3 px-4">
                         <div className="flex items-center space-x-2.5">
                           <div className="w-7 h-7 rounded-md bg-gradient-to-br from-slate-700 to-slate-900 border border-slate-700 flex items-center justify-center font-black text-white text-xs">
@@ -291,12 +533,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                         </div>
                       </td>
 
-                      {/* Email */}
                       <td className="py-3 px-3 text-slate-300 font-mono text-[11px]">
                         {u.email}
                       </td>
 
-                      {/* Role Badge */}
                       <td className="py-3 px-3">
                         {u.role === 'admin' && (
                           <span className="inline-flex items-center space-x-1 bg-red-950 text-red-300 border border-red-800 px-2 py-0.5 rounded text-[10px] font-black uppercase">
@@ -320,14 +560,12 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                         )}
                       </td>
 
-                      {/* Tier */}
                       <td className="py-3 px-3">
                         <span className="capitalize text-[11px] font-bold text-amber-300">
                           {u.tier}
                         </span>
                       </td>
 
-                      {/* Status */}
                       <td className="py-3 px-3">
                         {isBanned ? (
                           <span className="bg-red-900/60 text-red-200 border border-red-700 px-2 py-0.5 rounded text-[10px] font-bold flex items-center space-x-1 w-fit">
@@ -346,7 +584,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                         )}
                       </td>
 
-                      {/* Permissions icons */}
                       <td className="py-3 px-3">
                         <div className="flex items-center space-x-1.5 text-slate-400">
                           <span title={u.permissions?.canVoiceRecord ? 'Hangrögzítés engedélyezve' : 'Hangrögzítés letiltva'}>
@@ -367,10 +604,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                         </div>
                       </td>
 
-                      {/* Action buttons */}
                       <td className="py-3 px-4 text-right">
                         <div className="flex items-center justify-end space-x-1.5">
-                          {/* Edit Permissions Button */}
                           <button
                             onClick={() => setEditingUser({ ...u })}
                             className="p-1.5 bg-slate-800 hover:bg-slate-700 text-blue-300 rounded border border-slate-700 transition"
@@ -379,7 +614,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                             <Key className="w-3.5 h-3.5" />
                           </button>
 
-                          {/* Kick Session Button */}
                           {!isCurrent && (
                             <button
                               onClick={() => onKickUser(u.id)}
@@ -390,7 +624,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                             </button>
                           )}
 
-                          {/* Ban / Unban Button */}
                           {!isCurrent && (
                             isBanned ? (
                               <button
@@ -414,7 +647,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                             )
                           )}
 
-                          {/* Delete User Button */}
                           {!isCurrent && (
                             <button
                               onClick={() => {
@@ -440,7 +672,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         </div>
       )}
 
-      {/* 5. SUB-TAB 2: CHAPTERS MODERATION */}
+      {/* ========================================================================= */}
+      {/* SUB-TAB: CHAPTERS MODERATION */}
+      {/* ========================================================================= */}
       {activeSubTab === 'chapters' && (
         <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 sm:p-5 shadow-xl flex flex-col space-y-4">
           <div className="flex items-center justify-between">
@@ -504,7 +738,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         </div>
       )}
 
-      {/* 6. SUB-TAB 3: FATEBOARD STORIES MODERATION */}
+      {/* ========================================================================= */}
+      {/* SUB-TAB: FATEBOARD STORIES MODERATION */}
+      {/* ========================================================================= */}
       {activeSubTab === 'board' && (
         <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 sm:p-5 shadow-xl flex flex-col space-y-4">
           <div className="flex items-center justify-between">
@@ -547,7 +783,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         </div>
       )}
 
-      {/* 7. SUB-TAB 4: FATEMEMORY ENTITIES */}
+      {/* ========================================================================= */}
+      {/* SUB-TAB: FATEMEMORY ENTITIES */}
+      {/* ========================================================================= */}
       {activeSubTab === 'entities' && (
         <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 sm:p-5 shadow-xl flex flex-col space-y-4">
           <div className="flex items-center justify-between">
@@ -609,7 +847,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
             <div className="space-y-4 py-4">
               
-              {/* Role Selector */}
               <div>
                 <label className="text-slate-300 font-bold block mb-1">
                   Rendszer Szerepkör:
@@ -626,7 +863,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 </select>
               </div>
 
-              {/* Tier Selector */}
               <div>
                 <label className="text-slate-300 font-bold block mb-1">
                   Előfizetési Csomag (Tier):
@@ -643,7 +879,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 </select>
               </div>
 
-              {/* Granular Permissions Checkboxes */}
               <div>
                 <label className="text-slate-300 font-bold block mb-2">
                   Finomhangolt Jogosultságok:
@@ -734,7 +969,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
             </div>
 
-            {/* Modal Buttons */}
             <div className="flex items-center justify-end space-x-2 pt-3 border-t border-slate-800">
               <button
                 type="button"

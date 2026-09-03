@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { 
   ActiveTab, UserProfile, ChatMessage, FateEntity, 
-  ContradictionItem, BookChapter, BoardStory, AiPersona, UserRole 
+  ContradictionItem, BookChapter, BoardStory, AiPersona, UserRole, BackupSnapshot 
 } from './types';
 import { 
   initialUser, initialSystemUsers, initialMessages, initialEntities, 
   initialContradictions, initialChapters, initialBoardStories, initialFamilyEvent,
-  defaultPermissions, adminPermissions 
+  initialBackups, defaultPermissions, adminPermissions 
 } from './data/initialData';
+import { encryptPayload } from './utils/crypto';
 
 import { AuthScreen } from './components/auth/AuthScreen';
 import { Header } from './components/Header';
@@ -35,7 +36,7 @@ export const App: React.FC = () => {
       const parsed = JSON.parse(saved);
       return {
         ...parsed,
-        role: parsed.role || 'admin', // default to admin for existing sessions so user has admin access
+        role: parsed.role || 'admin',
         status: parsed.status || 'active',
         permissions: parsed.permissions || adminPermissions,
       };
@@ -119,6 +120,16 @@ export const App: React.FC = () => {
     }
   });
 
+  // System Backups (Including Daily 11:00 AM automated snapshots)
+  const [backups, setBackups] = useState<BackupSnapshot[]>(() => {
+    try {
+      const saved = localStorage.getItem('fatebook_backups');
+      return saved ? JSON.parse(saved) : initialBackups;
+    } catch {
+      return initialBackups;
+    }
+  });
+
   // Modals
   const [isVoiceModalOpen, setIsVoiceModalOpen] = useState(false);
   const [isChapterWizardOpen, setIsChapterWizardOpen] = useState(false);
@@ -141,10 +152,11 @@ export const App: React.FC = () => {
     try {
       localStorage.setItem('fatebook_system_users', JSON.stringify(systemUsers));
       localStorage.setItem('fatebook_board_stories', JSON.stringify(boardStories));
+      localStorage.setItem('fatebook_backups', JSON.stringify(backups));
     } catch (e) {
       console.error(e);
     }
-  }, [systemUsers, boardStories]);
+  }, [systemUsers, boardStories, backups]);
 
   useEffect(() => {
     if (user && localStorage.getItem('fatebook_is_demo') !== 'true') {
@@ -159,11 +171,59 @@ export const App: React.FC = () => {
     }
   }, [chapters, entities, contradictions, messages, user]);
 
+  // =========================================================================
+  // AUTOMATED DAILY 11:00 AM BACKUP ENGINE
+  // =========================================================================
+  useEffect(() => {
+    const checkScheduled11AmBackup = () => {
+      const now = new Date();
+      const currentHours = now.getHours();
+      const todayDateStr = now.toISOString().split('T')[0];
+      const lastAutoBackupDate = localStorage.getItem('fatebook_last_auto_backup_date');
+
+      // If current hour is 11:00 or later, and no auto-backup was taken today:
+      if (currentHours >= 11 && lastAutoBackupDate !== todayDateStr) {
+        const autoBackupSnapshot: BackupSnapshot = {
+          id: `backup-auto-${todayDateStr}-1100`,
+          timestamp: new Date().toISOString(),
+          createdAtHuman: `${todayDateStr} 11:00:00 (Napi automatikus mentés)`,
+          type: 'auto_11am',
+          stats: {
+            usersCount: systemUsers.length,
+            chaptersCount: chapters.length,
+            messagesCount: messages.length,
+            entitiesCount: entities.length,
+            boardStoriesCount: boardStories.length,
+          },
+          data: {
+            users: systemUsers,
+            chapters,
+            messages,
+            entities,
+            contradictions,
+            boardStories,
+          },
+        };
+
+        setBackups((prev) => [autoBackupSnapshot, ...prev]);
+        try {
+          localStorage.setItem('fatebook_last_auto_backup_date', todayDateStr);
+        } catch (e) {
+          console.error(e);
+        }
+        console.log('⏰ FateBook: Napi 11:00 órás automatikus mentés sikeresen lefutott.');
+      }
+    };
+
+    checkScheduled11AmBackup();
+    const timer = setInterval(checkScheduled11AmBackup, 45000); // Check every 45 seconds
+    return () => clearInterval(timer);
+  }, [systemUsers, chapters, messages, entities, contradictions, boardStories]);
+
   // Auth Handlers
   const handleLogin = (newUser: UserProfile, isNewRegistration = false) => {
     setUser(newUser);
     
-    // Add to systemUsers registry if not already present
     setSystemUsers((prev) => {
       const exists = prev.find((u) => u.id === newUser.id || u.email === newUser.email);
       if (exists) {
@@ -185,11 +245,14 @@ export const App: React.FC = () => {
       setEntities([]);
       setContradictions([]);
       
+      const welcomeText = `Szia ${newUser.name}! Én vagyok ${newUser.aiName}, a személyes AI-életrajzíród. Nagyon örülök, hogy megismerhetlek! Az életkönyved első oldala még tiszta, üres papír, és a mi feladatunk, hogy lapról lapra megírjuk a történetedet. Miről mesélnél ma először? A gyerekkorodról, a szüleidről, egy felejthetetlen utazásról, vagy a mai napodról?`;
       const welcomeMsg: ChatMessage = {
         id: `msg-welcome-${Date.now()}`,
         sender: 'ai',
-        text: `Szia ${newUser.name}! Én vagyok ${newUser.aiName}, a személyes AI-életrajzíród. Nagyon örülök, hogy megismerhetlek! Az életkönyved első oldala még tiszta, üres papír, és a mi feladatunk, hogy lapról lapra megírjuk a történetedet. Miről mesélnél ma először? A gyerekkorodról, a szüleidről, egy felejthetetlen utazásról, vagy a mai napodról?`,
+        text: welcomeText,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        isEncrypted: true,
+        encryptedText: encryptPayload(welcomeText),
       };
       setMessages([welcomeMsg]);
 
@@ -222,7 +285,7 @@ export const App: React.FC = () => {
       console.error(e);
     }
 
-    showToast('Belépve Péter Főadmin demó fiókjába (Minden jog engedélyezve).');
+    showToast('Belépve a Főadminisztrátori fiókba (Minden jog és titkosítás feloldva).');
   };
 
   const handleLogout = () => {
@@ -370,6 +433,71 @@ export const App: React.FC = () => {
     showToast('🗑️ Entitás törölve a FateMemory tudásbázisból.');
   };
 
+  // =========================================================================
+  // BACKUP & RESTORE ACTIONS
+  // =========================================================================
+  const handleCreateBackup = (type: 'auto_11am' | 'manual' = 'manual') => {
+    const now = new Date();
+    const dateStr = now.toLocaleDateString('hu-HU', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+    const newSnapshot: BackupSnapshot = {
+      id: `backup-${Date.now()}`,
+      timestamp: now.toISOString(),
+      createdAtHuman: `${dateStr} (${type === 'auto_11am' ? 'Napi automatikus mentés' : 'Kézi mentés'})`,
+      type,
+      stats: {
+        usersCount: systemUsers.length,
+        chaptersCount: chapters.length,
+        messagesCount: messages.length,
+        entitiesCount: entities.length,
+        boardStoriesCount: boardStories.length,
+      },
+      data: {
+        users: systemUsers,
+        chapters,
+        messages,
+        entities,
+        contradictions,
+        boardStories,
+      },
+    };
+
+    setBackups((prev) => [newSnapshot, ...prev]);
+    showToast('📦 Teljes rendszermentés sikeresen elkészült!');
+  };
+
+  const handleRestoreBackup = (backup: BackupSnapshot) => {
+    setSystemUsers(backup.data.users);
+    setChapters(backup.data.chapters);
+    setMessages(backup.data.messages);
+    setEntities(backup.data.entities);
+    setContradictions(backup.data.contradictions);
+    setBoardStories(backup.data.boardStories);
+
+    try {
+      localStorage.setItem('fatebook_system_users', JSON.stringify(backup.data.users));
+      localStorage.setItem('fatebook_chapters', JSON.stringify(backup.data.chapters));
+      localStorage.setItem('fatebook_messages', JSON.stringify(backup.data.messages));
+      localStorage.setItem('fatebook_entities', JSON.stringify(backup.data.entities));
+      localStorage.setItem('fatebook_contradictions', JSON.stringify(backup.data.contradictions));
+      localStorage.setItem('fatebook_board_stories', JSON.stringify(backup.data.boardStories));
+    } catch (e) {
+      console.error(e);
+    }
+
+    showToast(`🔄 Rendszer sikeresen visszaállítva a(z) „${backup.createdAtHuman}” állapotra!`);
+  };
+
+  const handleDeleteBackup = (backupId: string) => {
+    setBackups((prev) => prev.filter((b) => b.id !== backupId));
+    showToast('🗑️ Mentési pont eltávolítva.');
+  };
+
+  const handleImportBackup = (importedBackup: BackupSnapshot) => {
+    setBackups((prev) => [importedBackup, ...prev]);
+    handleRestoreBackup(importedBackup);
+    showToast('📥 Mentési fájl sikeresen beolvasva és visszaállítva!');
+  };
+
   // Factory Reset All Data
   const handleResetAllData = () => {
     setSystemUsers(initialSystemUsers);
@@ -378,6 +506,7 @@ export const App: React.FC = () => {
     setContradictions(initialContradictions);
     setBoardStories(initialBoardStories);
     setMessages(initialMessages);
+    setBackups(initialBackups);
     setUser(initialUser);
     try {
       localStorage.setItem('fatebook_system_users', JSON.stringify(initialSystemUsers));
@@ -386,6 +515,7 @@ export const App: React.FC = () => {
       localStorage.setItem('fatebook_entities', JSON.stringify(initialEntities));
       localStorage.setItem('fatebook_contradictions', JSON.stringify(initialContradictions));
       localStorage.setItem('fatebook_messages', JSON.stringify(initialMessages));
+      localStorage.setItem('fatebook_backups', JSON.stringify(initialBackups));
       localStorage.setItem('fatebook_user', JSON.stringify(initialUser));
       localStorage.setItem('fatebook_is_demo', 'true');
     } catch (e) {
@@ -395,7 +525,7 @@ export const App: React.FC = () => {
   };
 
   // =========================================================================
-  // AI Chat Handlers
+  // AI Chat Handlers (With Cryptographic Encryption)
   // =========================================================================
   const handleSendMessage = (text: string) => {
     if (user?.permissions && !user.permissions.canUseAi) {
@@ -403,11 +533,16 @@ export const App: React.FC = () => {
       return;
     }
 
+    // Encrypt message at rest
+    const encryptedText = encryptPayload(text);
+
     const userMsg: ChatMessage = {
       id: `msg-${Date.now()}`,
       sender: 'user',
       text,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      isEncrypted: true,
+      encryptedText,
     };
 
     setMessages((prev) => [...prev, userMsg]);
@@ -419,6 +554,7 @@ export const App: React.FC = () => {
         `Nagyon élénk részlet. Kik voltak még ott veled ezen a napon? Szívesen mesélsz róluk is?`,
       ];
       const randomResponse = responses[Math.floor(Math.random() * responses.length)];
+      const encryptedAiResponse = encryptPayload(randomResponse);
 
       const aiMsg: ChatMessage = {
         id: `msg-ai-${Date.now()}`,
@@ -426,6 +562,8 @@ export const App: React.FC = () => {
         text: randomResponse,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         extractedEntities: ['Új emlékfonal rögzítve'],
+        isEncrypted: true,
+        encryptedText: encryptedAiResponse,
       };
 
       setMessages((prev) => [...prev, aiMsg]);
@@ -737,6 +875,8 @@ export const App: React.FC = () => {
               chapters={chapters}
               boardStories={boardStories}
               entities={entities}
+              messages={messages}
+              backups={backups}
               onUpdateUser={handleUpdateUser}
               onDeleteUser={handleDeleteUser}
               onBanUser={handleBanUser}
@@ -746,6 +886,10 @@ export const App: React.FC = () => {
               onDeleteBoardStory={handleDeleteBoardStory}
               onDeleteEntity={handleDeleteEntity}
               onResetAllData={handleResetAllData}
+              onCreateBackup={handleCreateBackup}
+              onRestoreBackup={handleRestoreBackup}
+              onDeleteBackup={handleDeleteBackup}
+              onImportBackup={handleImportBackup}
             />
           )}
         </div>

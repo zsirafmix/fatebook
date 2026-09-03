@@ -1,4 +1,5 @@
-import { UserProfile, ChatMessage, FateEntity, ContradictionItem, BookChapter, BoardStory, MultiPerspectiveEvent, UserPermissions } from '../types';
+import { UserProfile, ChatMessage, FateEntity, ContradictionItem, BookChapter, BoardStory, MultiPerspectiveEvent, UserPermissions, BackupSnapshot } from '../types';
+import { encryptPayload } from '../utils/crypto';
 
 export const defaultPermissions: UserPermissions = {
   canVoiceRecord: true,
@@ -19,20 +20,20 @@ export const adminPermissions: UserPermissions = {
 };
 
 export const initialUser: UserProfile = {
-  id: 'user-peter-1',
-  name: 'Péter (Főadmin)',
-  penName: 'ÖregRóka72',
-  email: 'admin@fatebook.app',
+  id: 'user-admin-root',
+  name: 'Főadminisztrátor',
+  penName: 'RootAdmin',
+  email: 'kalapacs232425@admin.hu',
   role: 'admin',
   status: 'active',
   permissions: adminPermissions,
   aiName: 'Krónikás Gergő',
   aiPersona: 'biographer',
-  tier: 'family',
-  streakDays: 12,
-  totalAudioHours: 48.2,
-  totalWords: 84520,
-  createdAt: '2026-01-15',
+  tier: 'lifetime',
+  streakDays: 42,
+  totalAudioHours: 58.4,
+  totalWords: 98200,
+  createdAt: '2026-01-01',
 };
 
 export const initialSystemUsers: UserProfile[] = [
@@ -115,6 +116,8 @@ export const initialMessages: ChatMessage[] = [
     sender: 'ai',
     text: 'Jó újra itt lenni, Péter. A legutóbbi beszélgetésünkből már összeállítottam a vázlatot az 1994-es római utazásról. Ott hagytuk abba, hogy egy forró júliusi délutánon megálltatok a Trevi-kútnál, és a feleséged, Kata bedobott egy 100 lírás érmét a vízbe. Mire gondoltál abban a pillanatban? Emlékszel még arra a délutánra?',
     timestamp: '18:24',
+    isEncrypted: true,
+    encryptedText: encryptPayload('Jó újra itt lenni, Péter. A legutóbbi beszélgetésünkből már összeállítottam a vázlatot az 1994-es római utazásról. Ott hagytuk abba, hogy egy forró júliusi délutánon megálltatok a Trevi-kútnál, és a feleséged, Kata bedobott egy 100 lírás érmét a vízbe. Mire gondoltál abban a pillanatban? Emlékszel még arra a délutánra?'),
   },
   {
     id: 'msg-2',
@@ -122,6 +125,8 @@ export const initialMessages: ChatMessage[] = [
     text: 'Hogyne emlékeznék! Olyan hőség volt, hogy a macskaköveken szinte megolvadt a cipőnk talpa. De nem a fáradtság maradt meg, hanem az, hogy Kata rám nézett, és azt mondta: „Tudod, ide még vissza fogunk jönni a gyerekeinkkel is.” Akkor még nem sejtettük, hogy két év múlva megszületik Dániel.',
     timestamp: '18:26',
     audioDurationSeconds: 18,
+    isEncrypted: true,
+    encryptedText: encryptPayload('Hogyne emlékeznék! Olyan hőség volt, hogy a macskaköveken szinte megolvadt a cipőnk talpa. De nem a fáradtság maradt meg, hanem az, hogy Kata rám nézett, és azt mondta: „Tudod, ide még vissza fogunk jönni a gyerekeinkkel is.” Akkor még nem sejtettük, hogy két év múlva megszületik Dániel.'),
   },
   {
     id: 'msg-3',
@@ -129,6 +134,8 @@ export const initialMessages: ChatMessage[] = [
     text: 'Ez egy gyönyörű emlék, szinte látom a délutáni aranyszínű fényeket a vízen. És ahogy mondod, 1996-ban megérkezett Dániel. Visszatértetek valaha Rómába négyesben is, vagy a sors más utakat rajzolt?',
     timestamp: '18:28',
     extractedEntities: ['Róma, Trevi-kút (1994)', 'Kata (feleség)', 'Dániel fiam (szül. 1996)'],
+    isEncrypted: true,
+    encryptedText: encryptPayload('Ez egy gyönyörű emlék, szinte látom a délutáni aranyszínű fényeket a vízen. És ahogy mondod, 1996-ban megérkezett Dániel. Visszatértetek valaha Rómába négyesben is, vagy a sors más utakat rajzolt?'),
   },
 ];
 
@@ -359,3 +366,49 @@ export const initialFamilyEvent: MultiPerspectiveEvent = {
     },
   ],
 };
+
+export const initialBackups: BackupSnapshot[] = [
+  {
+    id: 'backup-auto-20260903-1100',
+    timestamp: '2026-09-03T11:00:00.000Z',
+    createdAtHuman: '2026. szeptember 3. 11:00:00 (Mai automatikus mentés)',
+    type: 'auto_11am',
+    stats: {
+      usersCount: 4,
+      chaptersCount: 4,
+      messagesCount: 3,
+      entitiesCount: 7,
+      boardStoriesCount: 3,
+    },
+    data: {
+      users: initialSystemUsers,
+      chapters: initialChapters,
+      messages: initialMessages,
+      entities: initialEntities,
+      contradictions: initialContradictions,
+      boardStories: initialBoardStories,
+    },
+  },
+  {
+    id: 'backup-auto-20260902-1100',
+    timestamp: '2026-09-02T11:00:00.000Z',
+    createdAtHuman: '2026. szeptember 2. 11:00:00 (Tegnapi automatikus mentés)',
+    type: 'auto_11am',
+    stats: {
+      usersCount: 3,
+      chaptersCount: 3,
+      messagesCount: 3,
+      entitiesCount: 6,
+      boardStoriesCount: 2,
+    },
+    data: {
+      users: initialSystemUsers.slice(0, 3),
+      chapters: initialChapters.slice(0, 3),
+      messages: initialMessages,
+      entities: initialEntities.slice(0, 6),
+      contradictions: initialContradictions,
+      boardStories: initialBoardStories.slice(0, 2),
+    },
+  },
+];
+
